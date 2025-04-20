@@ -18,7 +18,7 @@
 import math
 import random
 from PIL import ImageFilter, ImageDraw
-from ocr_subnet.utils.image import load
+from quote_prediction_subnet.utils.image import load
 
 
 def corrupt_image(load_path: str, save_path: str, border: int=50, noise: float=0.1, spot: tuple[int]=(100,100), scale: float=0.95, theta: float=0.2, blur: float=0.5):

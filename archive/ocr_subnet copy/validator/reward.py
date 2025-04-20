@@ -22,7 +22,7 @@ import editdistance
 
 from scipy.optimize import linear_sum_assignment
 
-from ocr_subnet.protocol import OCRSynapse, StructuredDataSynapse
+from quote_prediction_subnet.protocol import OCRSynapse, StructuredDataSynapse
 
 
 def get_position_reward(boxA: List[float], boxB: List[float] = None):

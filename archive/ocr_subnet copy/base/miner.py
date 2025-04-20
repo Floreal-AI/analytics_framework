@@ -23,7 +23,7 @@ import traceback
 
 import bittensor as bt
 
-from ocr_subnet.base.neuron import BaseNeuron
+from quote_prediction_subnet.base.neuron import BaseNeuron
 
 
 class BaseMinerNeuron(BaseNeuron):

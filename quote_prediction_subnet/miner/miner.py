@@ -1,7 +1,7 @@
 import torch
 import bittensor as bt
 from typing import Dict
-from ocr_subnet.protocol import StructuredDataSynapse
+from quote_prediction_subnet.protocol import StructuredDataSynapse
 
 class BinaryClassificationMiner:
     def __init__(self, config):

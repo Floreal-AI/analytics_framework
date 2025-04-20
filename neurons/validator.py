@@ -20,10 +20,10 @@ import time
 import hashlib
 import bittensor as bt
 
-import ocr_subnet
+import quote_prediction_subnet
 
 # import base validator class which takes care of most of the boilerplate
-from ocr_subnet.base.validator import BaseValidatorNeuron
+from quote_prediction_subnet.base.validator import BaseValidatorNeuron
 
 
 class Validator(BaseValidatorNeuron):
@@ -61,16 +61,16 @@ class Validator(BaseValidatorNeuron):
         """
 
         # get_random_uids is an example method, but you can replace it with your own.
-        miner_uids = ocr_subnet.utils.uids.get_random_uids(self, k=min(self.config.neuron.sample_size, self.metagraph.n.item()))
+        miner_uids = quote_prediction_subnet.utils.uids.get_random_uids(self, k=min(self.config.neuron.sample_size, self.metagraph.n.item()))
 
         # make a hash from the timestamp
         filename = hashlib.md5(str(time.time()).encode()).hexdigest()
 
         # Create a random image and load it.
-        image_data = ocr_subnet.validator.generate.invoice(path=os.path.join(self.image_dir, f"{filename}.pdf"), corrupt=True)
+        image_data = quote_prediction_subnet.validator.generate.invoice(path=os.path.join(self.image_dir, f"{filename}.pdf"), corrupt=True)
 
         # Create synapse object to send to the miner and attach the image.
-        synapse = ocr_subnet.protocol.OCRSynapse(base64_image = image_data['base64_image'])
+        synapse = quote_prediction_subnet.protocol.OCRSynapse(base64_image = image_data['base64_image'])
 
         # The dendrite client queries the network.
         responses = self.dendrite.query(
@@ -85,7 +85,7 @@ class Validator(BaseValidatorNeuron):
         # Log the results for monitoring purposes.
         bt.logging.info(f"Received responses: {responses}")
 
-        rewards = ocr_subnet.validator.reward.get_rewards(self, labels=image_data['labels'], responses=responses)
+        rewards = quote_prediction_subnet.validator.reward.get_rewards(self, labels=image_data['labels'], responses=responses)
 
         bt.logging.info(f"Scored responses: {rewards}")
 

@@ -60,35 +60,25 @@ with codecs.open(
     )
     version_string = version_match.group(1)
 
+
 setup(
-    name="ocr_subnet",
-    version=version_string,
-    description="Bittensor OCR subnet tutorial",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    url="https://github.com/steffencruz/ocr_subnet",
-    author="bittensor.com",  
+    name="quote_prediction_subnet",
+    version="0.1.0",
     packages=find_packages(),
-    include_package_data=True,
-    author_email="", 
-    license="MIT",
-    python_requires=">=3.8",
-    install_requires=requirements,
-    classifiers=[
-        "Development Status :: 3 - Alpha",
-        "Intended Audience :: Developers",
-        "Topic :: Software Development :: Build Tools",
-        # Pick your license as you wish
-        "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "Topic :: Scientific/Engineering",
-        "Topic :: Scientific/Engineering :: Mathematics",
-        "Topic :: Scientific/Engineering :: Artificial Intelligence",
-        "Topic :: Software Development",
-        "Topic :: Software Development :: Libraries",
-        "Topic :: Software Development :: Libraries :: Python Modules",
+    install_requires=[
+        "bittensor>=6.12.3",
+        "numpy>=1.21.0",
+        "torch>=1.9.0",
     ],
+    extras_require={
+        "dev": ["scikit-learn>=1.0.0"],
+    },
+    author="Your Name",
+    author_email="your.email@example.com",
+    description="A Bittensor subnet for predicting quote delivery time and acceptance rate",
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
+    url="https://github.com/Floreal-AI/analytics_framework",
+    license="MIT",
+    python_requires=">=3.8,<3.12",
 )

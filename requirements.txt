@@ -1,11 +1,8 @@
 bittensor
 torch
-pytesseract
 pandas
 faker
 scipy
-Pillow
-PyMuPDF
 reportlab
 pdf2image
 editdistance

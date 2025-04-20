@@ -26,9 +26,9 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 
-from ocr_subnet.validator.corrupt import corrupt_image
-from ocr_subnet.utils.image import load, serialize
-from ocr_subnet.utils.dataset import StructuredDataset
+from quote_prediction_subnet.validator.corrupt import corrupt_image
+from quote_prediction_subnet.utils.image import load, serialize
+from quote_prediction_subnet.utils.dataset import StructuredDataset
 import bittensor as bt
 
 seed = 0
