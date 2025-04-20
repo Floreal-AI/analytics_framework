@@ -53,12 +53,9 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 # loading version from setup.py
 with codecs.open(
-    os.path.join(here, "ocr_subnet/__init__.py"), encoding="utf-8"
+    os.path.join(here, "quote_prediction_subnet/__init__.py"), encoding="utf-8"
 ) as init_file:
-    version_match = re.search(
-        r"^__version__ = ['\"]([^'\"]*)['\"]", init_file.read(), re.M
-    )
-    version_string = version_match.group(1)
+    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", init_file.read(), re.M)
 
 
 setup(
@@ -73,8 +70,8 @@ setup(
     extras_require={
         "dev": ["scikit-learn>=1.0.0"],
     },
-    author="Your Name",
-    author_email="your.email@example.com",
+    author="Floreal AI",
+    author_email="bg@floreal.ai",
     description="A Bittensor subnet for predicting quote delivery time and acceptance rate",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",

@@ -3,6 +3,4 @@ torch
 pandas
 faker
 scipy
-reportlab
-pdf2image
-editdistance
+scikit-learn
