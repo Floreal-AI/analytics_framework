@@ -2,7 +2,7 @@
 import time
 import bittensor as bt
 from conversion_subnet.protocol import ConversionSynapse
-from conversion_subnet.validator.score import Validator as ScoreValidator
+from conversion_subnet.validator.reward import Validator
 from conversion_subnet.utils.uids import get_random_uids
 from conversion_subnet.validator.generate import generate_conversation
 
