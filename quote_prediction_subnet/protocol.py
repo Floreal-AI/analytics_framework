@@ -32,4 +32,4 @@ class ConversionSynapse(bt.Synapse):
             Dict[str, float]: The miner's prediction (conversion_happened, time_to_conversion_seconds).
         """
         return self.prediction if self.prediction is not None else {}
-```
+
