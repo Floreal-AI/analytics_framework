@@ -53,13 +53,13 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 # loading version from setup.py
 with codecs.open(
-    os.path.join(here, "quote_prediction_subnet/__init__.py"), encoding="utf-8"
+    os.path.join(here, "conversion_subnet/__init__.py"), encoding="utf-8"
 ) as init_file:
     version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", init_file.read(), re.M)
 
 
 setup(
-    name="quote_prediction_subnet",
+    name="conversion_subnet",
     version="0.1.0",
     packages=find_packages(),
     install_requires=[

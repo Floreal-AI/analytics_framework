@@ -1,0 +1,6 @@
+bittensor>=6.12.3
+numpy>=1.21.0
+torch>=1.9.0
+
+[dev]
+scikit-learn>=1.0.0
