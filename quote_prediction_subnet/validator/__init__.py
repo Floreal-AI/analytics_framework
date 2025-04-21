@@ -1,3 +1,3 @@
 from .forward import forward
-from .reward import get_rewards
+from .reward import Validator
 from .generate import generate_conversation 
