@@ -1,8 +1,8 @@
-
 import torch
 import numpy as np
 from typing import Dict
 from conversion_subnet.protocol import ConversionSynapse
+from conversion_subnet.validator.utils import log_metrics
 
 class Validator:
     def __init__(self):
@@ -70,18 +70,19 @@ class Validator:
         confidence_penalty = 1 - abs(confidence - 0.5)
         return confidence_penalty
 
-    def time_reward(self, response_time: float) -> float:
+    def time_reward(self, response_time: float, timeout: float = 60.0) -> float:
         """
         Compute Time Reward for a single conversation.
-        Rewards fast responses (within 60 seconds) for real-time performance.
+        Rewards fast responses within the specified timeout for real-time performance.
 
         Args:
             response_time (float): Time taken by miner to respond (seconds)
+            timeout (float): Maximum allowed response time (default 60 seconds)
 
         Returns:
             float: Time reward between 0 and 1
         """
-        return max(1 - response_time / 60, 0)
+        return max(1 - response_time / timeout, 0)
 
     def prediction_reward(self, class_reward: float, reg_score: float, div_reward: float) -> float:
         """
@@ -139,13 +140,14 @@ class Validator:
             'negative': positives / total if total > 0 else 0.5
         }
 
-    def reward(self, targets: Dict, response: ConversionSynapse) -> float:
+    def reward(self, targets: Dict, response: ConversionSynapse, timeout: float = 60.0) -> float:
         """
         Compute reward for a miner's response based on prediction accuracy and response time.
 
         Args:
             targets (Dict): Ground truth {'conversion_happened': int, 'time_to_conversion_seconds': float}
             response (ConversionSynapse): Miner's response with predictions and confidence
+            timeout (float): Maximum allowed response time (default 60 seconds)
 
         Returns:
             float: Reward score between 0 and 1
@@ -158,7 +160,7 @@ class Validator:
         reg_score = self.regression_reward(response.prediction, targets)
         div_reward = self.diversity_reward(response.confidence)
         pred_reward = self.prediction_reward(class_reward, reg_score, div_reward)
-        time_reward = self.time_reward(response.response_time)
+        time_reward = self.time_reward(response.response_time, timeout)
 
         # Compute total reward
         total_reward = self.total_reward(pred_reward, time_reward)
@@ -173,20 +175,24 @@ class Validator:
         if len(self.ground_truth_history) % 100 == 0:
             self.update_class_weights()
 
+        # Log metrics
+        log_metrics(response, total_reward, targets)
+
         return total_reward
 
-    def get_rewards(self, targets: Dict, responses: list) -> torch.FloatTensor:
+    def get_rewards(self, targets: Dict, responses: list, timeout: float = 60.0) -> torch.FloatTensor:
         """
         Compute rewards for all responses.
 
         Args:
             targets (Dict): Ground truth
             responses (list): List of ConversionSynapse responses
+            timeout (float): Maximum allowed response time (default 60 seconds)
 
         Returns:
             torch.FloatTensor: Rewards for each response
         """
-        return torch.FloatTensor([self.reward(targets, r) for r in responses])
+        return torch.FloatTensor([self.reward(targets, r, timeout) for r in responses])
 
     def get_weights(self, num_miners: int = 192) -> torch.FloatTensor:
         """
@@ -202,4 +208,3 @@ class Validator:
         total = np.sum(weights)
         weights = weights / total if total > 0 else np.zeros(num_miners)
         return torch.FloatTensor(weights)
-```
