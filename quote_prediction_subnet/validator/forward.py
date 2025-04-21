@@ -1,10 +1,11 @@
-
 import time
 import bittensor as bt
+import numpy as np
 from conversion_subnet.protocol import ConversionSynapse
 from conversion_subnet.validator.reward import Validator
 from conversion_subnet.utils.uids import get_random_uids
 from conversion_subnet.validator.generate import generate_conversation
+from conversion_subnet.validator.utils import validate_features, log_metrics
 
 async def forward(self):
     """
@@ -17,12 +18,12 @@ async def forward(self):
     # Select a subset of miners to query (e.g., 10 miners)
     miner_uids = get_random_uids(self, k=self.config.neuron.sample_size)
 
-    # TODO: Obtain real-time conversation features from our API.
+    # TODO: Obtain real-time conversation features from our API
     # For development/testing, use synthetic features from generate_conversation
- 
-    features = generate_conversation()  # Synthetic data for development; replace with real-time features
+    features = validate_features(generate_conversation())  # Synthetic data, validated
     # Example real-time retrieval (uncomment and implement):
     # features = await get_realtime_features()  # Custom function to fetch from API/database
+    # features = validate_features(features)
 
     # Create ConversionSynapse with features
     synapse = ConversionSynapse(features=features)
@@ -46,7 +47,6 @@ async def forward(self):
     bt.logging.info(f"Received responses: {[r.prediction for r in responses if r.prediction is not None]}")
 
     # TODO: Obtain ground truth post-conversation (e.g., from external system, human evaluation, or automated rules)
-    # For now, assume ground truth is provided externally
     ground_truth = {
         'session_id': features['session_id'],
         'conversion_happened': 1,  # Placeholder
@@ -54,14 +54,15 @@ async def forward(self):
     }
 
     # Score responses using the Incentive Mechanism
-    score_validator = ScoreValidator()
+    score_validator = Validator()
     rewards = []
     for response in responses:
         if response.prediction is None or not response.prediction:
-            rewards.append(0.0)
+            reward = 0.0
         else:
-            reward = score_validator.score_miner(response, ground_truth)
-            rewards.append(reward)
+            reward = score_validator.reward(ground_truth, response)
+            log_metrics(response, reward, ground_truth)  # Log detailed metrics
+        rewards.append(reward)
 
     # Convert rewards to numpy array for weight updates
     rewards = np.array(rewards, dtype=np.float32)
