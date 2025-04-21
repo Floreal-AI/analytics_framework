@@ -6,7 +6,7 @@ import traceback
 
 import bittensor as bt
 
-from quote_prediction_subnet.base.neuron import BaseNeuron
+from conversion_subnet.base.neuron import BaseNeuron
 
 
 class BaseMinerNeuron(BaseNeuron):
