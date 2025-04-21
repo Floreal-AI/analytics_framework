@@ -1,40 +1,39 @@
-import os
-import time
-import hashlib
-import bittensor as bt
+# The MIT License (MIT)
+# Copyright © 2023 Yuma Rao
+# Copyright © 2025 [Your Name/Organization] (modified for AI Agent Task Performance Subnet)
 
-import quote_prediction_subnet
+# [Existing license text remains unchanged]
 
-# import base validator class which takes care of most of the boilerplate
-from quote_prediction_subnet.base.validator import BaseValidatorNeuron
 import bittensor as bt
-from quote_prediction_subnet.protocol import QuotePredictionSynapse
-from quote_prediction_subnet.validator.generate import generate_interaction
-from quote_prediction_subnet.validator.reward import get_rewards
+from conversion_subnet.base.validator import BaseValidatorNeuron
+from conversion_subnet.validator.forward import forward
 
 class Validator(BaseValidatorNeuron):
+    """
+    Validator neuron for the AI Agent Task Performance Subnet. Queries miners with conversation features,
+    scores their predictions (conversion_happened, time_to_conversion_seconds), and updates network weights.
+
+    Inherits from BaseValidatorNeuron, which handles Bittensor network operations (wallet, subtensor, dendrite, syncing).
+    This class delegates the forward method to the forward.py implementation, which generates or obtains features,
+    queries miners, and scores responses using the Incentive Mechanism.
+    """
+
     def __init__(self, config=None):
-        super().__init__(config=config)
+        super(Validator, self).__init__(config=config)
+
         bt.logging.info("load_state()")
         self.load_state()
 
     async def forward(self):
-        miner_uids = quote_prediction_subnet.utils.uids.get_random_uids(
-            self, k=min(self.config.neuron.sample_size, self.metagraph.n.item())
-        )
-        data = generate_interaction()
-        synapse = QuotePredictionSynapse(features=data['features'])
-        
-        responses = await self.dendrite.query(
-            axons=[self.metagraph.axons[uid] for uid in miner_uids],
-            synapse=synapse,
-            deserialize=False,
-        )
-        
-        rewards = get_rewards(data['targets'], responses, self.config)
-        bt.logging.info(f"Received responses: {responses}")
-        bt.logging.info(f"Scored responses: {rewards}")
-        self.update_scores(rewards, miner_uids)
+        """
+        The forward function is called by the validator every time step. It delegates to the forward.py implementation,
+        which:
+        - Obtains conversation features (synthetic for development, real-time in production)
+        - Queries miners with ConversionSynapse
+        - Scores responses using the Incentive Mechanism
+        - Updates miner scores
+        """
+        await forward(self)
 
 if __name__ == "__main__":
     with Validator() as validator:
