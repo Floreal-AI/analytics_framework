@@ -37,7 +37,7 @@ session_id,conversation_duration_seconds,conversation_duration_minutes,hour_of_d
 
 
 
-#### Ground Truth Dynamic, Private):
+#### Ground Truth (Dynamic, Private):
 True targets for test conversations, generated post-conversation based on AI agent task success (e.g., convincing user and providing a quote).
 
 ```plaintext
