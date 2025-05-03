@@ -2,14 +2,14 @@
 # Copyright © 2023 Yuma Rao
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
+# documentation files (the "Software"), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
 # and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
 # The above copyright notice and this permission notice shall be included in all copies or substantial portions of
 # the Software.
 
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
 # THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
@@ -17,6 +17,7 @@
 
 import copy
 import typing
+import os
 
 import bittensor as bt
 
@@ -57,9 +58,62 @@ class BaseNeuron(ABC):
         return ttl_get_block(self)
 
     def __init__(self, config=None):
-        base_config = copy.deepcopy(config or BaseNeuron.config())
-        self.config = self.config()
-        self.config.merge(base_config)
+        # Defensive copying and merging of configs
+        try:
+            base_config = copy.deepcopy(config or self.config())
+            if base_config is None:
+                base_config = bt.config()
+                
+            self.config = bt.config()
+            
+            try:
+                # Only try to merge if the config is not None
+                if base_config is not None:
+                    self.config.merge(base_config)
+            except Exception as e:
+                bt.logging.warning(f"Error merging configs: {e}. Using default configuration.")
+        except Exception as e:
+            bt.logging.warning(f"Error initializing config: {e}. Using default configuration.")
+            self.config = bt.config()
+        
+        # Ensure neuron configuration exists
+        if not hasattr(self.config, 'neuron') or self.config.neuron is None:
+            self.config.neuron = bt.config()
+            
+        # Set default device if not specified
+        if not hasattr(self.config.neuron, 'device') or self.config.neuron.device is None:
+            self.config.neuron.device = 'cpu'
+            
+        # Set default epoch_length if not specified
+        if not hasattr(self.config.neuron, 'epoch_length') or self.config.neuron.epoch_length is None:
+            self.config.neuron.epoch_length = 100
+            
+        # Ensure full_path exists for logging
+        if not hasattr(self.config, 'full_path'):
+            # Create a default path using the wallet and hotkey names
+            if hasattr(self.config, 'wallet') and hasattr(self.config.wallet, 'name'):
+                wallet_name = self.config.wallet.name
+            else:
+                wallet_name = "default"
+                
+            if hasattr(self.config, 'wallet') and hasattr(self.config.wallet, 'hotkey'):
+                hotkey_name = self.config.wallet.hotkey
+            else:
+                hotkey_name = "default"
+                
+            netuid = getattr(self.config, 'netuid', 1)
+            neuron_name = getattr(self.config.neuron, 'name', 'neuron')
+            
+            full_path = os.path.expanduser(
+                f"~/.bittensor/neurons/{wallet_name}/{hotkey_name}/netuid{netuid}/{neuron_name}"
+            )
+            self.config.full_path = full_path
+            
+            # Create directory if it doesn't exist
+            if not os.path.exists(full_path):
+                os.makedirs(full_path, exist_ok=True)
+            
+        # Run standard config checks
         self.check_config(self.config)
 
         # Set up logging with the provided configuration and directory.

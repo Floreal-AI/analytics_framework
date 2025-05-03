@@ -16,6 +16,8 @@ conversion-subnet = {file = ".", editable = true}
 numpy = "*"
 matplotlib = "*"
 typing-extensions = "*"
+substrate-interface = "*"
+bittensor-cli = "*"
 
 [dev-packages]
 ipykernel = "*"

@@ -66,6 +66,12 @@ class PredictionOutput(TypedDict):
     conversion_happened: int                  # Binary indicator if conversion happened (0 or 1)
     time_to_conversion_seconds: float         # Time to conversion in seconds (-1.0 if no conversion)
 
+# Create a default prediction that always passes validation
+DEFAULT_PREDICTION = {
+    'conversion_happened': 0,
+    'time_to_conversion_seconds': -1.0
+}
+
 class ConversionSynapse(bt.Synapse):
     """
     A synapse protocol for the AI Agent Task Performance Subnet, inheriting from bt.Synapse.
@@ -82,12 +88,76 @@ class ConversionSynapse(bt.Synapse):
     features: ConversationFeatures
 
     # Output: Predictions and confidence returned by miner
-    prediction: Optional[PredictionOutput] = None
+    # Initialize with a valid default to avoid validation errors
+    prediction: PredictionOutput = DEFAULT_PREDICTION  
     confidence: Optional[float] = None
 
     # Metadata for scoring
     response_time: float = 0.0
     miner_uid: int = 0
+
+    def __post_init__(self):
+        """
+        Post-initialization hook to ensure data types are correct.
+        Converts integer fields to integers if they were provided as floats.
+        """
+        if self.features:
+            integer_fields = [
+                'hour_of_day', 'day_of_week', 'is_business_hours', 'is_weekend',
+                'total_messages', 'user_messages_count', 'agent_messages_count',
+                'max_message_length_user', 'min_message_length_user', 'total_chars_from_user',
+                'max_message_length_agent', 'min_message_length_agent', 'total_chars_from_agent',
+                'question_count_agent', 'question_count_user', 'sequential_user_messages',
+                'sequential_agent_messages', 'entities_collected_count', 'has_target_entity',
+                'repeated_questions'
+            ]
+            
+            for field in integer_fields:
+                if field in self.features and self.features[field] is not None:
+                    try:
+                        self.features[field] = int(self.features[field])
+                    except (ValueError, TypeError):
+                        # If conversion fails, log warning but continue
+                        bt.logging.warning(f"Failed to convert {field} to integer: {self.features[field]}")
+        
+        # Ensure prediction is valid
+        self.set_prediction(self.prediction)
+
+    def set_prediction(self, prediction: Optional[Union[Dict, PredictionOutput]]) -> None:
+        """
+        Set the prediction with validation and type conversion.
+        
+        Args:
+            prediction: The prediction to set, or None to use default
+        """
+        if prediction is None or not prediction:
+            # Use default prediction
+            self.prediction = DEFAULT_PREDICTION.copy()
+            return
+            
+        # Make a copy to avoid modifying the original
+        result = prediction.copy()
+        
+        # Ensure required fields exist
+        if 'conversion_happened' not in result:
+            result['conversion_happened'] = 0
+            
+        if 'time_to_conversion_seconds' not in result:
+            result['time_to_conversion_seconds'] = -1.0
+            
+        # Fix data types
+        try:
+            result['conversion_happened'] = int(result['conversion_happened'])
+        except (ValueError, TypeError):
+            result['conversion_happened'] = 0
+            
+        try:
+            result['time_to_conversion_seconds'] = float(result['time_to_conversion_seconds'])
+        except (ValueError, TypeError):
+            result['time_to_conversion_seconds'] = -1.0
+            
+        # Set the validated prediction
+        self.prediction = result
 
     def deserialize(self) -> Union[PredictionOutput, Dict]:
         """
@@ -96,5 +166,7 @@ class ConversionSynapse(bt.Synapse):
         Returns:
             PredictionOutput: The miner's prediction (conversion_happened, time_to_conversion_seconds).
         """
-        return self.prediction if self.prediction is not None else {}
+        if self.prediction is None:
+            return DEFAULT_PREDICTION.copy()
+        return self.prediction
 

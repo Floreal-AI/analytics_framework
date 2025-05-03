@@ -18,10 +18,44 @@ class Miner(BaseMinerNeuron):
     """
 
     def __init__(self, config=None):
+        # Initialize with base configuration
         super(Miner, self).__init__(config=config)
 
-        # Initialize the binary classification miner
-        self.classifier = BinaryClassificationMiner(config)
+        # Explicitly create necessary config objects if missing
+        if not hasattr(self.config, 'neuron'):
+            self.config.neuron = bt.config()
+            self.config.neuron.device = 'cpu'
+            logger.warning("Created missing neuron config with defaults")
+
+        # Explicitly create miner config if missing
+        if not hasattr(self.config, 'miner'):
+            self.config.miner = bt.config()
+            logger.warning("Created missing miner config with defaults")
+        
+        # Set device for the miner model, defaulting to CPU
+        device = 'cpu'
+        # Only use neuron.device if it exists and is not None
+        if hasattr(self.config.neuron, 'device') and self.config.neuron.device is not None:
+            device = self.config.neuron.device
+        
+        # Ensure miner device is set
+        self.config.miner.device = device
+        
+        # Initialize the binary classification miner with proper config
+        logger.info(f"Initializing classifier with device: {self.config.miner.device}")
+        try:
+            self.classifier = BinaryClassificationMiner(self.config)
+            logger.info("Successfully initialized binary classification miner")
+        except Exception as e:
+            logger.error(f"Error initializing classifier: {e}")
+            # Create a minimal configuration as a fallback
+            fallback_config = bt.config()
+            fallback_config.miner = bt.config()
+            fallback_config.miner.device = 'cpu'
+            fallback_config.miner.input_size = 40
+            fallback_config.miner.hidden_sizes = [64, 32, 1]
+            self.classifier = BinaryClassificationMiner(fallback_config)
+            logger.warning("Using fallback classifier configuration")
         
         # List of 40 feature names for reference
         self.features = [

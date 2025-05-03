@@ -1,4 +1,3 @@
-
 import uuid
 from typing import Dict
 import bittensor as bt
@@ -15,6 +14,26 @@ def validate_features(features: Dict) -> Dict:
         Dict: Validated and corrected features
     """
     validated = features.copy()
+
+    # Ensure integer fields are properly converted
+    integer_fields = [
+        'hour_of_day', 'day_of_week', 'is_business_hours', 'is_weekend',
+        'total_messages', 'user_messages_count', 'agent_messages_count',
+        'max_message_length_user', 'min_message_length_user', 'total_chars_from_user',
+        'max_message_length_agent', 'min_message_length_agent', 'total_chars_from_agent',
+        'question_count_agent', 'question_count_user', 'sequential_user_messages',
+        'sequential_agent_messages', 'entities_collected_count', 'has_target_entity',
+        'repeated_questions'
+    ]
+    
+    for field in integer_fields:
+        if field in validated and validated[field] is not None:
+            try:
+                validated[field] = int(validated[field])
+            except (ValueError, TypeError) as e:
+                bt.logging.warning(f"Failed to convert {field} to integer: {validated[field]}, error: {e}")
+                # Provide a reasonable default
+                validated[field] = 0
 
     # Ensure conversation_duration_minutes is consistent
     validated['conversation_duration_minutes'] = round(validated['conversation_duration_seconds'] / 60, 4)
@@ -79,3 +98,40 @@ def log_metrics(response: ConversionSynapse, reward: float, ground_truth: Dict):
         f"Response Time: {response.response_time:.2f}s, "
         f"Reward: {reward:.4f}"
     )
+
+def preprocess_prediction(prediction: Dict) -> Dict:
+    """
+    Preprocess prediction data to ensure correct data types.
+    
+    Args:
+        prediction (Dict): Dictionary with miner predictions
+        
+    Returns:
+        Dict: Dictionary with corrected data types
+    """
+    if not prediction:
+        return {}
+        
+    result = prediction.copy()
+    
+    # Ensure conversion_happened is an integer
+    if 'conversion_happened' in result and result['conversion_happened'] is not None:
+        try:
+            result['conversion_happened'] = int(result['conversion_happened'])
+        except (ValueError, TypeError):
+            result['conversion_happened'] = 0
+    # If None, set a default value of 0
+    elif 'conversion_happened' in result and result['conversion_happened'] is None:
+        result['conversion_happened'] = 0
+            
+    # Ensure time_to_conversion_seconds is a float
+    if 'time_to_conversion_seconds' in result and result['time_to_conversion_seconds'] is not None:
+        try:
+            result['time_to_conversion_seconds'] = float(result['time_to_conversion_seconds'])
+        except (ValueError, TypeError):
+            result['time_to_conversion_seconds'] = -1.0
+    # If None, set a default value of -1.0
+    elif 'time_to_conversion_seconds' in result and result['time_to_conversion_seconds'] is None:
+        result['time_to_conversion_seconds'] = -1.0
+            
+    return result

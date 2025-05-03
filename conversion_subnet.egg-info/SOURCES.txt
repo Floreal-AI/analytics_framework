@@ -36,3 +36,4 @@ conversion_subnet/validator/validator.py
 neurons/__init__.py
 neurons/miner.py
 neurons/validator.py
+tests/test_utils.py

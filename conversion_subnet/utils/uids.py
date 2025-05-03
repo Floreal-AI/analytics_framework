@@ -52,12 +52,21 @@ def get_random_uids(
             if uid_is_not_excluded:
                 candidate_uids.append(uid)
 
-    # Check if candidate_uids contain enough for querying, if not grab all avaliable uids
-    available_uids = candidate_uids
-    if len(candidate_uids) < k:
-        available_uids += random.sample(
-            [uid for uid in avail_uids if uid not in candidate_uids],
-            k - len(candidate_uids),
-        )
-    uids = torch.tensor(random.sample(available_uids, k))
+    # Check if we have any candidates at all
+    if len(candidate_uids) == 0:
+        bt.logging.warning("No available candidate UIDs found. Using all available UIDs.")
+        candidate_uids = avail_uids
+
+    # Adjust k if there aren't enough available uids
+    adjusted_k = min(k, len(candidate_uids))
+    if adjusted_k < k:
+        bt.logging.warning(f"Requested {k} UIDs but only {adjusted_k} are available.")
+        
+    # If no candidates are available at all, return an empty tensor
+    if adjusted_k == 0:
+        bt.logging.warning("No UIDs available at all. Returning empty tensor.")
+        return torch.tensor([], dtype=torch.long)
+        
+    # Sample from available candidates
+    uids = torch.tensor(random.sample(candidate_uids, adjusted_k))
     return uids

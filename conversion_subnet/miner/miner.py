@@ -1,26 +1,66 @@
 import torch
 import bittensor as bt
-from typing import Dict
+from typing import Dict, Optional, Union, Any
 
 from conversion_subnet.protocol import ConversionSynapse, PredictionOutput
 from conversion_subnet.utils.log import logger
 from conversion_subnet.constants import MLP_LAYER_SIZES, TIMEOUT_SEC
 
 class BinaryClassificationMiner:
-    def __init__(self, config):
+    def __init__(self, config: Optional[Any] = None):
         """
         Initialize the binary classification miner
         
         Args:
             config: Configuration object
         """
-        self.config = config
-        self.device = torch.device(config.miner.device)
+        # Initialize configuration with defaults
+        self.config = config if config is not None else bt.config()
+        
+        # Ensure we have a complete configuration structure
+        if not hasattr(self.config, 'miner'):
+            logger.warning("No miner configuration found, using defaults")
+            miner_config = bt.config()
+            setattr(self.config, 'miner', miner_config)
+        elif self.config.miner is None:
+            logger.warning("Miner configuration is None, using defaults")
+            self.config.miner = bt.config()
+        
+        # Set core miner configuration with hard defaults
+        # These are set directly, not through getattr to ensure they're properly set
+        if not hasattr(self.config.miner, 'device') or self.config.miner.device is None:
+            self.config.miner.device = "cpu"
+        
+        if not hasattr(self.config.miner, 'input_size') or self.config.miner.input_size is None:
+            self.config.miner.input_size = 40
+            
+        if not hasattr(self.config.miner, 'hidden_sizes') or self.config.miner.hidden_sizes is None:
+            self.config.miner.hidden_sizes = MLP_LAYER_SIZES
+        
+        # Initialize device - safely handle any device string issues
+        try:
+            self.device = torch.device(self.config.miner.device)
+        except Exception as e:
+            logger.warning(f"Failed to use device '{self.config.miner.device}': {e}. Falling back to CPU.")
+            self.config.miner.device = "cpu"
+            self.device = torch.device("cpu")
+            
+        logger.info(f"Using device: {self.device}")
         
         # Initialize model
-        self.model = self._init_model()
-        self.model.to(self.device)
-        logger.info(f"Initialized binary classification miner with model: {self.model}")
+        try:
+            self.model = self._init_model()
+            self.model.to(self.device)
+            logger.info(f"Initialized binary classification miner with model: {self.model}")
+        except Exception as e:
+            logger.error(f"Failed to initialize model: {e}")
+            # Create a very simple fallback model if initialization fails
+            input_size = 40  # Hard default
+            self.model = torch.nn.Sequential(
+                torch.nn.Linear(input_size, 1),
+                torch.nn.Sigmoid()
+            ).to(self.device)
+            logger.info(f"Using fallback model: {self.model}")
         
     def _init_model(self) -> torch.nn.Module:
         """

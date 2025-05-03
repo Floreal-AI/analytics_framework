@@ -162,49 +162,103 @@ class Validator:
 
     def reward(self, 
                targets: PredictionOutput, 
-               response: ConversionSynapse, 
+               response: Union[ConversionSynapse, Dict], 
                timeout: float = TIMEOUT_SEC) -> float:
         """
         Compute reward for a miner's response based on prediction accuracy and response time.
 
         Args:
             targets (PredictionOutput): Ground truth
-            response (ConversionSynapse): Miner's response with predictions and confidence
+            response (Union[ConversionSynapse, Dict]): Miner's response with predictions and confidence
             timeout (float): Maximum allowed response time
 
         Returns:
             float: Reward score between 0 and 1
         """
-        if response.prediction is None or not response.prediction:
-            logger.warning(f"Empty prediction from miner {response.miner_uid}")
+        try:
+            # Handle dict response (for backward compatibility or testing)
+            if isinstance(response, dict):
+                # Convert dict to ConversionSynapse
+                temp_synapse = ConversionSynapse(features={})
+                
+                # Handle prediction field
+                if 'prediction' in response:
+                    temp_synapse.set_prediction(response.get('prediction'))
+                
+                # Handle confidence field
+                if 'confidence' in response:
+                    temp_synapse.confidence = response.get('confidence')
+                else:
+                    temp_synapse.confidence = 0.5  # Default confidence
+                
+                # Handle response_time field
+                if 'response_time' in response:
+                    temp_synapse.response_time = response.get('response_time')
+                else:
+                    temp_synapse.response_time = timeout  # Default to timeout
+                
+                # Handle miner_uid field
+                if 'miner_uid' in response:
+                    temp_synapse.miner_uid = response.get('miner_uid')
+                else:
+                    temp_synapse.miner_uid = 0  # Default UID
+                
+                response = temp_synapse
+                
+            # Extra safety to ensure response has necessary attributes
+            if not hasattr(response, 'prediction') or response.prediction is None:
+                response.set_prediction({})
+                
+            if not hasattr(response, 'confidence'):
+                response.confidence = 0.5
+                
+            if not hasattr(response, 'response_time'):
+                response.response_time = timeout
+                
+            if not hasattr(response, 'miner_uid'):
+                response.miner_uid = 0
+            
+            # Ensure prediction is properly formatted
+            if isinstance(response.prediction, dict) and (not response.prediction or
+                    'conversion_happened' not in response.prediction or
+                    'time_to_conversion_seconds' not in response.prediction):
+                response.set_prediction(response.prediction)
+                
+            if not response.prediction:
+                logger.warning(f"Empty prediction from miner {response.miner_uid}")
+                return 0.0
+
+            # Compute individual rewards
+            class_reward = self.classification_reward(response.prediction, targets)
+            reg_score = self.regression_reward(response.prediction, targets)
+            div_reward = self.diversity_reward(response.confidence)
+            pred_reward = self.prediction_reward(class_reward, reg_score, div_reward)
+            time_reward_value = self.calculate_time_reward(response.response_time, timeout)
+
+            # Compute total reward
+            total_reward = self.total_reward(pred_reward, time_reward_value)
+
+            # Update EMA score
+            miner_uid = response.miner_uid
+            previous_ema = self.ema_scores.get(miner_uid, 0.0)
+            self.ema_scores[miner_uid] = self.update_ema(total_reward, previous_ema)
+
+            # Store ground truth for class weight updates
+            self.ground_truth_history.append(targets)
+            if len(self.ground_truth_history) % HISTORY_UPDATE_INTERVAL == 0:
+                self.update_class_weights()
+                # Keep only most recent history to prevent memory growth
+                self.ground_truth_history = self.ground_truth_history[-HISTORY_UPDATE_INTERVAL:]
+
+            # Log metrics
+            log_metrics(response, total_reward, targets)
+
+            return total_reward
+            
+        except Exception as e:
+            logger.error(f"Error computing reward: {e}")
+            # Return zero score on error for safety
             return 0.0
-
-        # Compute individual rewards
-        class_reward = self.classification_reward(response.prediction, targets)
-        reg_score = self.regression_reward(response.prediction, targets)
-        div_reward = self.diversity_reward(response.confidence)
-        pred_reward = self.prediction_reward(class_reward, reg_score, div_reward)
-        time_reward_value = self.calculate_time_reward(response.response_time, timeout)
-
-        # Compute total reward
-        total_reward = self.total_reward(pred_reward, time_reward_value)
-
-        # Update EMA score
-        miner_uid = response.miner_uid
-        previous_ema = self.ema_scores.get(miner_uid, 0.0)
-        self.ema_scores[miner_uid] = self.update_ema(total_reward, previous_ema)
-
-        # Store ground truth for class weight updates
-        self.ground_truth_history.append(targets)
-        if len(self.ground_truth_history) % HISTORY_UPDATE_INTERVAL == 0:
-            self.update_class_weights()
-            # Keep only most recent history to prevent memory growth
-            self.ground_truth_history = self.ground_truth_history[-HISTORY_UPDATE_INTERVAL:]
-
-        # Log metrics
-        log_metrics(response, total_reward, targets)
-
-        return total_reward
 
     def get_rewards(self, 
                    targets: PredictionOutput, 

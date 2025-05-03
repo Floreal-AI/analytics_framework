@@ -3,8 +3,8 @@ import torch
 import asyncio
 import threading
 import bittensor as bt
-
-from typing import List
+import numpy as np
+from typing import List, Union
 from traceback import print_exception
 
 from conversion_subnet.base.neuron import BaseNeuron
@@ -27,7 +27,14 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Set up initial scoring weights for validation
         bt.logging.info("Building validation weights.")
-        self.scores = torch.zeros_like(self.metagraph.S, dtype=torch.float32)
+        # Convert numpy array to torch tensor before using zeros_like
+        try:
+            S_tensor = torch.tensor(self.metagraph.S, dtype=torch.float32)
+            self.scores = torch.zeros_like(S_tensor)
+        except Exception as e:
+            bt.logging.warning(f"Error creating scores tensor: {e}. Using direct initialization.")
+            # Fallback to direct initialization if conversion fails
+            self.scores = torch.zeros(len(self.metagraph.S), dtype=torch.float32)
 
         # Init sync with the network. Updates the metagraph.
         self.sync()
@@ -202,16 +209,67 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.trace("top10 uids", raw_weights.sort()[1])
 
         # Process the raw weights to final_weights via subtensor limitations.
-        (
-            processed_weight_uids,
-            processed_weights,
-        ) = bt.utils.weight_utils.process_weights_for_netuid(
-            uids=self.metagraph.uids.to("cpu"),
-            weights=raw_weights.to("cpu"),
-            netuid=self.config.netuid,
-            subtensor=self.subtensor,
-            metagraph=self.metagraph,
-        )
+        try:
+            # Convert uids to torch tensor if it's not already
+            if isinstance(self.metagraph.uids, np.ndarray):
+                uids_tensor = torch.tensor(self.metagraph.uids, dtype=torch.long)
+            else:
+                uids_tensor = self.metagraph.uids.to("cpu")
+                
+            # Convert weights to CPU
+            weights_cpu = raw_weights.detach().cpu()
+            
+            # Handle potential conversion issues with bt.utils.weight_utils
+            try:
+                (
+                    processed_weight_uids,
+                    processed_weights,
+                ) = bt.utils.weight_utils.process_weights_for_netuid(
+                    uids=uids_tensor,
+                    weights=weights_cpu,
+                    netuid=self.config.netuid,
+                    subtensor=self.subtensor,
+                    metagraph=self.metagraph,
+                )
+            except AttributeError as e:
+                if "astype" in str(e):
+                    # Handle the specific "astype" error by converting to numpy first
+                    bt.logging.warning(f"Handling 'astype' error: {e}")
+                    weights_numpy = weights_cpu.numpy()
+                    uids_numpy = uids_tensor.numpy() if hasattr(uids_tensor, "numpy") else np.array(uids_tensor)
+                    (
+                        processed_weight_uids,
+                        processed_weights,
+                    ) = bt.utils.weight_utils.process_weights_for_netuid(
+                        uids=uids_numpy,
+                        weights=weights_numpy,
+                        netuid=self.config.netuid,
+                        subtensor=self.subtensor,
+                        metagraph=self.metagraph,
+                    )
+                else:
+                    # Rethrow other attribute errors
+                    raise
+        except Exception as e:
+            bt.logging.error(f"Error processing weights: {e}. Using direct weights.")
+            # Fallback to direct weights
+            try:
+                # Directly create numpy arrays for the weights
+                uids_list = list(range(min(len(self.scores), len(self.metagraph.uids))))
+                weights_norm = raw_weights[uids_list].detach().cpu().numpy()
+                
+                # Ensure weights sum to 1
+                if np.sum(weights_norm) > 0:
+                    weights_norm = weights_norm / np.sum(weights_norm)
+                
+                processed_weight_uids = uids_list
+                processed_weights = [float(w) for w in weights_norm]
+            except Exception as inner_e:
+                bt.logging.error(f"Error in direct weights fallback: {inner_e}. Using zeros.")
+                # If all else fails, use zeros
+                processed_weight_uids = list(range(min(len(self.scores), len(self.metagraph.uids))))
+                processed_weights = [0.0] * len(processed_weight_uids)
+            
         bt.logging.trace("processed_weights", processed_weights)
         bt.logging.trace("processed_weight_uids", processed_weight_uids)
 
@@ -231,61 +289,118 @@ class BaseValidatorNeuron(BaseNeuron):
         """Resyncs the metagraph and updates the hotkeys and moving averages based on the new metagraph."""
         bt.logging.info("resync_metagraph()")
 
-        # Copies state of metagraph before syncing.
-        previous_metagraph = copy.deepcopy(self.metagraph)
+        try:
+            # Copies state of metagraph before syncing.
+            previous_metagraph = copy.deepcopy(self.metagraph)
 
-        # Sync the metagraph.
-        self.metagraph.sync(subtensor=self.subtensor)
+            # Sync the metagraph.
+            self.metagraph.sync(subtensor=self.subtensor)
 
-        # Check if the metagraph axon info has changed.
-        if previous_metagraph.axons == self.metagraph.axons:
-            return
+            # Check if the metagraph axon info has changed.
+            if previous_metagraph.axons == self.metagraph.axons:
+                return
 
-        bt.logging.info(
-            "Metagraph updated, re-syncing hotkeys, dendrite pool and moving averages"
-        )
-        # Zero out all hotkeys that have been replaced.
-        for uid, hotkey in enumerate(self.hotkeys):
-            if hotkey != self.metagraph.hotkeys[uid]:
-                self.scores[uid] = 0  # hotkey has been replaced
-
-        # Check to see if the metagraph has changed size.
-        # If so, we need to add new hotkeys and moving averages.
-        if len(self.hotkeys) < len(self.metagraph.hotkeys):
-            # Update the size of the moving average scores.
-            new_moving_average = torch.zeros((self.metagraph.n)).to(
-                self.device
+            bt.logging.info(
+                "Metagraph updated, re-syncing hotkeys, dendrite pool and moving averages"
             )
-            min_len = min(len(self.hotkeys), len(self.scores))
-            new_moving_average[:min_len] = self.scores[:min_len]
-            self.scores = new_moving_average
+            
+            # Zero out all hotkeys that have been replaced.
+            try:
+                for uid, hotkey in enumerate(self.hotkeys):
+                    if uid < len(self.metagraph.hotkeys) and hotkey != self.metagraph.hotkeys[uid]:
+                        self.scores[uid] = 0  # hotkey has been replaced
+            except Exception as e:
+                bt.logging.warning(f"Error updating hotkey scores: {e}")
+                
+            # Check to see if the metagraph has changed size.
+            # If so, we need to add new hotkeys and moving averages.
+            if len(self.hotkeys) < len(self.metagraph.hotkeys):
+                bt.logging.info(f"Metagraph size increased from {len(self.hotkeys)} to {len(self.metagraph.hotkeys)}")
+                # Update the size of the moving average scores.
+                try:
+                    # When creating a new scores tensor, make sure it's on the right device
+                    device = getattr(self, 'device', 'cpu')
+                    
+                    # Create new tensor of appropriate size
+                    new_scores = torch.zeros(len(self.metagraph.hotkeys), dtype=torch.float32)
+                    
+                    # Copy over existing scores
+                    min_len = min(len(self.hotkeys), len(self.scores), len(new_scores))
+                    new_scores[:min_len] = self.scores[:min_len]
+                    
+                    # Replace the old scores tensor
+                    self.scores = new_scores
+                except Exception as e:
+                    bt.logging.warning(f"Error resizing scores tensor: {e}. Reinitializing scores.")
+                    # If there's an error, reinitialize the scores tensor
+                    self.scores = torch.zeros(len(self.metagraph.hotkeys), dtype=torch.float32)
+            elif len(self.hotkeys) > len(self.metagraph.hotkeys):
+                bt.logging.info(f"Metagraph size decreased from {len(self.hotkeys)} to {len(self.metagraph.hotkeys)}")
+                # Metagraph got smaller, resize the scores
+                try:
+                    new_scores = torch.zeros(len(self.metagraph.hotkeys), dtype=torch.float32)
+                    min_len = min(len(new_scores), len(self.scores))
+                    new_scores[:min_len] = self.scores[:min_len]
+                    self.scores = new_scores
+                except Exception as e:
+                    bt.logging.warning(f"Error downsizing scores tensor: {e}. Reinitializing scores.")
+                    self.scores = torch.zeros(len(self.metagraph.hotkeys), dtype=torch.float32)
+            
+            # Update the hotkeys.
+            self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+            
+        except Exception as e:
+            bt.logging.error(f"Error in resync_metagraph: {e}")
+            bt.logging.debug(traceback.format_exc())
 
-        # Update the hotkeys.
-        self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
-
-    def update_scores(self, rewards: torch.FloatTensor, uids: List[int]):
+    def update_scores(self, rewards: Union[torch.FloatTensor, np.ndarray, List[float]], uids: List[int]):
         """Performs exponential moving average on the scores based on the rewards received from the miners."""
 
+        # Convert rewards to torch tensor if needed
+        if isinstance(rewards, np.ndarray):
+            rewards = torch.tensor(rewards, dtype=torch.float32)
+        elif isinstance(rewards, list):
+            rewards = torch.tensor(rewards, dtype=torch.float32)
+            
         # Check if rewards contains NaN values.
         if torch.isnan(rewards).any():
             bt.logging.warning(f"NaN values detected in rewards: {rewards}")
             # Replace any NaN values in rewards with 0.
             rewards = torch.nan_to_num(rewards, 0)
 
-        # Compute forward pass rewards, assumes uids are mutually exclusive.
-        # shape: [ metagraph.n ]
-        scattered_rewards: torch.FloatTensor = self.scores.scatter(
-            0, torch.tensor(uids).to(self.device), rewards
-        ).to(self.device)
-        bt.logging.debug(f"Scattered rewards: {rewards}")
+        try:
+            # Ensure uids is a tensor on the correct device
+            uids_tensor = torch.tensor(uids, dtype=torch.long)
+            
+            # Make sure rewards is on the CPU for compatibility
+            rewards_cpu = rewards.to("cpu") if hasattr(rewards, "to") else rewards
+            
+            # Compute forward pass rewards, assumes uids are mutually exclusive.
+            # shape: [ metagraph.n ]
+            scattered_rewards = torch.zeros_like(self.scores)
+            for i, uid in enumerate(uids):
+                if uid < len(scattered_rewards):
+                    scattered_rewards[uid] = rewards_cpu[i]
+                    
+            bt.logging.debug(f"Scattered rewards: {scattered_rewards}")
 
-        # Update scores with rewards produced by this step.
-        # shape: [ metagraph.n ]
-        alpha: float = self.config.neuron.moving_average_alpha
-        self.scores: torch.FloatTensor = alpha * scattered_rewards + (
-            1 - alpha
-        ) * self.scores.to(self.device)
-        bt.logging.debug(f"Updated moving avg scores: {self.scores}")
+            # Update scores with rewards produced by this step.
+            # shape: [ metagraph.n ]
+            alpha: float = self.config.neuron.moving_average_alpha
+            self.scores = alpha * scattered_rewards + (1 - alpha) * self.scores
+            bt.logging.debug(f"Updated moving avg scores: {self.scores}")
+        except Exception as e:
+            bt.logging.warning(f"Error updating scores: {e}. Using simpler update method.")
+            # Fallback to direct indexing
+            try:
+                for i, uid in enumerate(uids):
+                    if uid < len(self.scores):
+                        # Apply EMA directly
+                        alpha: float = self.config.neuron.moving_average_alpha
+                        reward_value = float(rewards[i]) if i < len(rewards) else 0.0
+                        self.scores[uid] = alpha * reward_value + (1 - alpha) * float(self.scores[uid])
+            except Exception as e2:
+                bt.logging.error(f"Error in fallback score update: {e2}. Scores not updated.")
 
     def save_state(self):
         """Saves the state of the validator to a file."""
