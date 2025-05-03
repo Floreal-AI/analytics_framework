@@ -1,0 +1,21 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+bittensor = ">=6.0.0"
+torch = ">=2.0.0"
+pandas = ">=1.5.0"
+faker = ">=18.0.0"
+scipy = ">=1.9.0"
+scikit-learn = ">=1.2.0"
+numpy = ">=1.23.0"
+loguru = ">=0.6.0"
+password-strength = "==0.0.3.post2"
+conversion-subnet = {file = ".", editable = true}
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"

@@ -3,7 +3,7 @@
 
 Welcome to the Bittensor Subnet Competition, a decentralized challenge hosted on a Bittensor subnet to evaluate and enhance AI agent task performance in real-time conversational tasks. Participants deploy miners (AI models) to predict whether an AI agent (e.g., a "quote agent") will successfully complete its task—such as convincing a user to request a quote and delivering it—and the time taken to do so. Validators issue conversation challenges, score predictions, and set weights to drive Alpha Token rewards and self-improvement. Conversations arrive sequentially, requiring miners to submit predictions within a 60-second window.
 
-This competition leverages Bittensor’s subnet architecture to foster innovation in AI agent development. By rewarding miners for accurate, timely predictions and validators for fair evaluations, the subnet creates a decentralized ecosystem where agents continuously improve their ability to perform tasks in dynamic conversations across industries like customer support and sales.
+This competition leverages Bittensor's subnet architecture to foster innovation in AI agent development. By rewarding miners for accurate, timely predictions and validators for fair evaluations, the subnet creates a decentralized ecosystem where agents continuously improve their ability to perform tasks in dynamic conversations across industries like customer support and sales.
 
 ## Overview
 
@@ -234,7 +234,7 @@ if __name__ == "__main__":
 
    ```bash
    git clone https://github.com/Floreal-AI/analytics_framework.git
-   cd quote-prediction-subnet
+   cd analytics_framework
    ```
 
 2. Install dependencies:
@@ -252,12 +252,12 @@ if __name__ == "__main__":
 Run a validator to generate data and score miner responses:
 
 ```bash
-python -m ocr_subnet.validator
+python -m neurons.validator
 ```
 
 ### Miner
 
-Run a miner to predict quote outcomes:
+Run a miner to predict conversion outcomes:
 
 ```bash
 python -m neurons.miner

@@ -1,7 +1,6 @@
-
-
 import random
 import typing
+import time
 import bittensor as bt
 from conversion_subnet.protocol import ConversionSynapse
 from conversion_subnet.base.miner import BaseMinerNeuron
@@ -113,7 +112,7 @@ class Miner(BaseMinerNeuron):
 
     async def priority(self, synapse: ConversionSynapse) -> float:
         """
-        Determines the priority of an incoming request based on the caller’s stake.
+        Determines the priority of an incoming request based on the caller's stake.
 
         Args:
             synapse (ConversionSynapse): Synapse object with request metadata.

@@ -1,7 +1,7 @@
 import torch
 import bittensor as bt
 from typing import Dict
-from quote_prediction_subnet.protocol import StructuredDataSynapse
+from conversion_subnet.protocol import ConversionSynapse
 
 class BinaryClassificationMiner:
     def __init__(self, config):
@@ -36,18 +36,18 @@ class BinaryClassificationMiner:
         )
         return model
         
-    def forward(self, synapse: StructuredDataSynapse) -> Dict:
+    def forward(self, synapse: ConversionSynapse) -> Dict:
         """
         Process the input features and return prediction
         
         Args:
-            synapse (StructuredDataSynapse): Input synapse containing features
+            synapse (ConversionSynapse): Input synapse containing features
             
         Returns:
             Dict: Dictionary containing prediction and confidence
         """
         # Convert features to tensor
-        features = torch.tensor(synapse.features, dtype=torch.float32).to(self.device)
+        features = torch.tensor(list(synapse.features.values()), dtype=torch.float32).to(self.device)
         
         # Get prediction
         with torch.no_grad():
@@ -56,6 +56,7 @@ class BinaryClassificationMiner:
             confidence = float(output.item())
             
         return {
-            'prediction': prediction,
+            'conversion_happened': prediction,
+            'time_to_conversion_seconds': float(60.0) if prediction == 1 else -1.0,
             'confidence': confidence
         } 

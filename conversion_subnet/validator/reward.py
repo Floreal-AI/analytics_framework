@@ -70,7 +70,7 @@ class Validator:
         confidence_penalty = 1 - abs(confidence - 0.5)
         return confidence_penalty
 
-    def time_reward(self, response_time: float, timeout: float = 60.0) -> float:
+    def calculate_time_reward(self, response_time: float, timeout: float = 60.0) -> float:
         """
         Compute Time Reward for a single conversation.
         Rewards fast responses within the specified timeout for real-time performance.
@@ -160,10 +160,10 @@ class Validator:
         reg_score = self.regression_reward(response.prediction, targets)
         div_reward = self.diversity_reward(response.confidence)
         pred_reward = self.prediction_reward(class_reward, reg_score, div_reward)
-        time_reward = self.time_reward(response.response_time, timeout)
+        time_reward_value = self.calculate_time_reward(response.response_time, timeout)
 
         # Compute total reward
-        total_reward = self.total_reward(pred_reward, time_reward)
+        total_reward = self.total_reward(pred_reward, time_reward_value)
 
         # Update EMA score
         miner_uid = response.miner_uid
