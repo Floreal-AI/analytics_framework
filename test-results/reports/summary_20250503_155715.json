@@ -1,0 +1,18 @@
+{
+  "exitstatus": 1,
+  "test_counts": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "errors": 0
+  },
+  "duration": 0.49005579948425293,
+  "failed_tests": [
+    {
+      "name": "tests/unit/validator/test_forward.py::TestForward::test_forward",
+      "duration": 0.0004960000005667098,
+      "error_message": "self = <test_forward.TestForward object at 0x121a39600>\nsample_features = {'agent_messages_count': 7, 'avg_agent_response_time_seconds': 7.5, 'avg_entity_confidence': 0.87, 'avg_message_length_agent': 55.6, ...}\n\n    @pytest.mark.asyncio\n    async def test_forward(self, sample_features):\n        \"\"\"Test the main forward function.\"\"\"\n        # Mock the validate_features and generate_ground_truth functions directly\n>       original_validate_features = validate_features\nE       UnboundLocalError: local variable 'validate_features' referenced before assignment\n\ntests/unit/validator/test_forward.py:121: UnboundLocalError"
+    }
+  ]
+}

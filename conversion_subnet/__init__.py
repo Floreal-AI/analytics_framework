@@ -22,7 +22,7 @@
 conversion_subnet
 =================
 
-Real‑time Conversation Analytics **Bittensor** subnet
+Real‑time Conversation Analytics **Bittensor** subnet
 -----------------------------------------------------
 
 This package contains:
@@ -41,7 +41,7 @@ Typical usage
 -------------
 >>> import conversion_subnet as cs
 >>> print(cs.__version__)
-'0.1.0-dev'
+'0.1.0'
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ try:
     __version__: str = version(__name__)  # type: ignore[arg-type]
 
 except PackageNotFoundError:  # running from source‑tree or editable mode
-    __version__ = "0.1.0-dev"
+    __version__ = "0.1.0"
 
 # ------------------------------------------------------------------------- #
 # Public re‑exports (optional, keep the surface small)

@@ -1,12 +1,19 @@
 import time
 import bittensor as bt
 import numpy as np
-from typing import Dict
-from conversion_subnet.protocol import ConversionSynapse
+from typing import Dict, List
+
+from conversion_subnet.protocol import ConversionSynapse, ConversationFeatures, PredictionOutput
 from conversion_subnet.validator.reward import Validator
 from conversion_subnet.utils.uids import get_random_uids
 from conversion_subnet.validator.generate import generate_conversation
 from conversion_subnet.validator.utils import validate_features, log_metrics
+from conversion_subnet.utils.log import logger
+from conversion_subnet.constants import (
+    TIMEOUT_SEC, SAMPLE_SIZE, REQUIRED_FEATURES,
+    ENTITY_THRESHOLD, MESSAGE_RATIO_THRESHOLD, MIN_CONVERSATION_DURATION,
+    TIME_SCALE_FACTOR, MIN_CONVERSION_TIME
+)
 
 async def forward(self):
     """
@@ -16,8 +23,9 @@ async def forward(self):
     Args:
         self: The validator neuron object containing state (e.g., metagraph, dendrite, config).
     """
-    # Select a subset of miners to query (e.g., 10 miners)
-    miner_uids = get_random_uids(self, k=self.config.neuron.sample_size)
+    # Select a subset of miners to query
+    sample_size = getattr(self.config.neuron, 'sample_size', SAMPLE_SIZE)
+    miner_uids = get_random_uids(self, k=sample_size)
 
     # Generate synthetic conversation features
     conversation = generate_conversation()
@@ -36,7 +44,7 @@ async def forward(self):
         axons=[self.metagraph.axons[uid] for uid in miner_uids],
         synapse=synapse,
         deserialize=True,
-        timeout=60.0  # 60-second timeout for real-time responses
+        timeout=TIMEOUT_SEC
     )
     end_time = time.time()
 
@@ -46,10 +54,9 @@ async def forward(self):
         response.miner_uid = uid
 
     # Log responses for monitoring
-    bt.logging.info(f"Received responses: {[r.prediction for r in responses if r.prediction is not None]}")
+    logger.info(f"Received responses: {[r.prediction for r in responses if r.prediction is not None]}")
 
     # Generate ground truth based on conversation features
-    # Determine if conversion happened based on key features
     ground_truth = generate_ground_truth(features)
     
     # Score responses using the Incentive Mechanism
@@ -61,7 +68,7 @@ async def forward(self):
         else:
             # Validate prediction format
             if not validate_prediction(response.prediction):
-                bt.logging.warning(f"Invalid prediction format from miner {response.miner_uid}: {response.prediction}")
+                logger.warning(f"Invalid prediction format from miner {response.miner_uid}: {response.prediction}")
                 reward = 0.0
             else:
                 reward = score_validator.reward(ground_truth, response)
@@ -72,21 +79,21 @@ async def forward(self):
     rewards = np.array(rewards, dtype=np.float32)
 
     # Log scored responses
-    bt.logging.info(f"Scored responses: {rewards}")
+    logger.info(f"Scored responses: {rewards}")
 
     # Update miner scores based on rewards
     self.update_scores(rewards, miner_uids)
 
-def generate_ground_truth(features: Dict) -> Dict:
+def generate_ground_truth(features: ConversationFeatures) -> PredictionOutput:
     """
     Generate ground truth based on conversation features.
     This implements a deterministic rule-based approach that miners can learn.
     
     Args:
-        features (Dict): Conversation features
+        features (ConversationFeatures): Conversation features
         
     Returns:
-        Dict: Ground truth with conversion_happened and time_to_conversion_seconds
+        PredictionOutput: Ground truth with conversion_happened and time_to_conversion_seconds
     """
     # Determine if conversion happened based on key features
     has_target = features.get('has_target_entity', 0) == 1
@@ -95,30 +102,29 @@ def generate_ground_truth(features: Dict) -> Dict:
     conversation_duration = features.get('conversation_duration_seconds', 0)
     
     # Rule 1: Has target entity and collected enough entities
-    conversion_rule1 = has_target and entities_count >= 4
+    conversion_rule1 = has_target and entities_count >= ENTITY_THRESHOLD
     
     # Rule 2: Good message ratio (agent asks more questions) and conversation is long enough
-    conversion_rule2 = message_ratio > 1.2 and conversation_duration > 90
+    conversion_rule2 = message_ratio > MESSAGE_RATIO_THRESHOLD and conversation_duration > MIN_CONVERSATION_DURATION
     
     # Conversion happens if either rule is met
     conversion_happened = 1 if (conversion_rule1 or conversion_rule2) else 0
     
     # Calculate time to conversion if conversion happened
     if conversion_happened == 1:
-        # Base time is conversation_duration * 0.7
-        base_time = conversation_duration * 0.7
+        # Base time is conversation_duration * scale_factor
+        base_time = conversation_duration * TIME_SCALE_FACTOR
         
         # Adjust based on features 
         adjustment = 10 if has_target else 0
         adjustment -= 5 * max(0, entities_count - 3)  # Faster with more entities
         adjustment += 5 * (1.0 - min(1.0, message_ratio / 2.0))  # Faster with better message ratio
         
-        time_to_conversion = max(30, base_time + adjustment)  # Minimum 30 seconds
+        time_to_conversion = max(MIN_CONVERSION_TIME, base_time + adjustment)
     else:
         time_to_conversion = -1.0
         
     return {
-        'session_id': features['session_id'],
         'conversion_happened': conversion_happened,
         'time_to_conversion_seconds': time_to_conversion
     }

@@ -1,0 +1,134 @@
+{
+  "logs": [
+    {
+      "timestamp": "2025-05-03T16:03:00.077515",
+      "level": "INFO",
+      "message": "Starting test session",
+      "metadata": {
+        "test_dir": "/Users/admin/Documents/PersonalProjects/bittensor/analytics_framework/test-results"
+      }
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.082264",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.098753",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.105254",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.111467",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.115726",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=32, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=32, out_features=16, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=16, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.119923",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.125549",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.130816",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.132287",
+      "level": "ERROR",
+      "message": "Error in forward: mat1 and mat2 shapes cannot be multiplied (1x0 and 40x16)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.136982",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.160574",
+      "level": "INFO",
+      "message": "Epoch 1/1 - train_loss: 0.5000, train_acc: 0.5000, val_loss: 0.5000, val_acc: 0.5000",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.164265",
+      "level": "INFO",
+      "message": "Saved model checkpoint to /private/var/folders/wg/544yksrd18q2wtz1fyftdm400000gn/T/pytest-of-admin/pytest-10/test_save_model0/checkpoints/test_model.pt",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.213856",
+      "level": "INFO",
+      "message": "Loaded model checkpoint from /private/var/folders/wg/544yksrd18q2wtz1fyftdm400000gn/T/pytest-of-admin/pytest-10/test_load_model0/checkpoints/test_model.pt",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.234832",
+      "level": "ERROR",
+      "message": "Missing required features: ['session_id']",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.236151",
+      "level": "ERROR",
+      "message": "Feature type validation errors: ['has_target_entity must be 0 or 1, got not_an_int']",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.237861",
+      "level": "WARNING",
+      "message": "Feature hour_of_day could not be converted to float",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.257003",
+      "level": "INFO",
+      "message": "Test session completed",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:03:00.652159",
+      "level": "INFO",
+      "message": "Test session finished with exit status 0",
+      "metadata": {
+        "exitstatus": 0,
+        "test_counts": {
+          "total": 52,
+          "passed": 52,
+          "failed": 0,
+          "skipped": 0,
+          "errors": 0
+        },
+        "duration": 0.6544220447540283
+      }
+    }
+  ],
+  "metadata": {
+    "generated_at": "2025-05-03T16:03:00.652873",
+    "log_count": 19
+  }
+}

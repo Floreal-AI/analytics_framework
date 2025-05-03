@@ -1,0 +1,62 @@
+{
+  "logs": [
+    {
+      "timestamp": "2025-05-03T15:53:56.480229",
+      "level": "INFO",
+      "message": "Starting test session",
+      "metadata": {
+        "test_dir": "/Users/admin/Documents/PersonalProjects/bittensor/analytics_framework/test-results"
+      }
+    },
+    {
+      "timestamp": "2025-05-03T15:53:56.484772",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:53:56.500160",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:53:56.505557",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:53:56.508039",
+      "level": "ERROR",
+      "message": "Error in forward: mat1 and mat2 shapes cannot be multiplied (1x0 and 40x16)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:53:56.509675",
+      "level": "INFO",
+      "message": "Test session completed",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:53:56.884313",
+      "level": "INFO",
+      "message": "Test session finished with exit status 0",
+      "metadata": {
+        "exitstatus": 0,
+        "test_counts": {
+          "total": 4,
+          "passed": 4,
+          "failed": 0,
+          "skipped": 0,
+          "errors": 0
+        },
+        "duration": 0.45276808738708496
+      }
+    }
+  ],
+  "metadata": {
+    "generated_at": "2025-05-03T15:53:56.884974",
+    "log_count": 7
+  }
+}

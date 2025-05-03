@@ -1,0 +1,86 @@
+{
+  "logs": [
+    {
+      "timestamp": "2025-05-03T15:53:30.932348",
+      "level": "INFO",
+      "message": "Starting test session",
+      "metadata": {
+        "test_dir": "/Users/admin/Documents/PersonalProjects/bittensor/analytics_framework/test-results"
+      }
+    },
+    {
+      "timestamp": "2025-05-03T15:53:30.936587",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:53:30.941966",
+      "level": "ERROR",
+      "message": "Error in forward: mat1 and mat2 shapes cannot be multiplied (1x0 and 40x16)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:53:31.026894",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:53:31.028306",
+      "level": "ERROR",
+      "message": "Error in forward: mat1 and mat2 shapes cannot be multiplied (1x0 and 40x16)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:53:31.036527",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:53:31.037707",
+      "level": "ERROR",
+      "message": "Error in forward: mat1 and mat2 shapes cannot be multiplied (1x0 and 40x16)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:53:31.039383",
+      "level": "INFO",
+      "message": "Test session completed",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:53:31.415443",
+      "level": "INFO",
+      "message": "Test session finished with exit status 1",
+      "metadata": {
+        "exitstatus": 1,
+        "test_counts": {
+          "total": 4,
+          "passed": 2,
+          "failed": 2,
+          "skipped": 0,
+          "errors": 0
+        },
+        "duration": 0.5294249057769775,
+        "failed_tests": [
+          {
+            "name": "tests/unit/miner/test_miner.py::TestBinaryClassificationMiner::test_forward",
+            "duration": 0.005349375001969747,
+            "error_message": "self = <test_miner.TestBinaryClassificationMiner object at 0x11862e8f0>\nmock_miner = <conversion_subnet.miner.miner.BinaryClassificationMiner object at 0x11862ceb0>\nsample_synapse = ConversionSynapse(features={}, prediction=None, confidence=None, response_time=0.0, miner_uid=0)\n\n    def test_forward(self, mock_miner, sample_synapse):\n        \"\"\"Test the forward method returns the expected output structure.\"\"\"\n        # Create a simple mock features dictionary with numeric values\n        mock_features = {f'feature_{i}': float(i) for i in range(40)}\n        sample_synapse.features = mock_features\n    \n        # Mock the model output\n        with patch.object(mock_miner.model, '__call__', return_value=torch.tensor([0.7])):\n            result = mock_miner.forward(sample_synapse)\n    \n            # Check result structure\n            assert 'conversion_happened' in result\n            assert 'time_to_conversion_seconds' in result\n            assert 'confidence' in result\n    \n            # Check result values\n>           assert result['conversion_happened'] == 1  # 0.7 rounded up\nE           assert 0 == 1\n\ntests/unit/miner/test_miner.py:61: AssertionError"
+          },
+          {
+            "name": "tests/unit/miner/test_miner.py::TestBinaryClassificationMiner::test_forward_negative_case",
+            "duration": 0.0011865830019814894,
+            "error_message": "self = <test_miner.TestBinaryClassificationMiner object at 0x11862eda0>\nmock_miner = <conversion_subnet.miner.miner.BinaryClassificationMiner object at 0x11866feb0>\nsample_synapse = ConversionSynapse(features={}, prediction=None, confidence=None, response_time=0.0, miner_uid=0)\n\n    def test_forward_negative_case(self, mock_miner, sample_synapse):\n        \"\"\"Test the forward method with a negative prediction.\"\"\"\n        # Create a simple mock features dictionary with numeric values\n        mock_features = {f'feature_{i}': float(i) for i in range(40)}\n        sample_synapse.features = mock_features\n    \n        # Mock the model output for negative case\n        with patch.object(mock_miner.model, '__call__', return_value=torch.tensor([0.3])):\n            result = mock_miner.forward(sample_synapse)\n    \n            assert result['conversion_happened'] == 0  # 0.3 rounded down\n            assert result['time_to_conversion_seconds'] == -1.0  # Negative for no conversion\n>           assert result['confidence'] == 0.3\nE           assert 0.0 == 0.3\n\ntests/unit/miner/test_miner.py:77: AssertionError"
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "generated_at": "2025-05-03T15:53:31.446973",
+    "log_count": 9
+  }
+}

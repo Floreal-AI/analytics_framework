@@ -1,0 +1,45 @@
+{
+  "logs": [
+    {
+      "timestamp": "2025-05-03T15:58:49.240340",
+      "level": "INFO",
+      "message": "Starting test session",
+      "metadata": {
+        "test_dir": "/Users/admin/Documents/PersonalProjects/bittensor/analytics_framework/test-results"
+      }
+    },
+    {
+      "timestamp": "2025-05-03T15:58:49.437729",
+      "level": "INFO",
+      "message": "Test session completed",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T15:58:49.759022",
+      "level": "INFO",
+      "message": "Test session finished with exit status 1",
+      "metadata": {
+        "exitstatus": 1,
+        "test_counts": {
+          "total": 1,
+          "passed": 0,
+          "failed": 1,
+          "skipped": 0,
+          "errors": 0
+        },
+        "duration": 0.5564830303192139,
+        "failed_tests": [
+          {
+            "name": "tests/unit/validator/test_forward.py::TestForward::test_forward",
+            "duration": 0.003507291999994777,
+            "error_message": "self = <test_forward.TestForward object at 0x1260f9750>\nsample_features = {'agent_messages_count': 7, 'avg_agent_response_time_seconds': 7.5, 'avg_entity_confidence': 0.87, 'avg_message_length_agent': 55.6, ...}\n\n    @pytest.mark.asyncio\n    async def test_forward(self, sample_features):\n        \"\"\"Test the main forward function.\"\"\"\n        # Create a mock response\n        response = ConversionSynapse(\n            features=sample_features,\n            prediction={'conversion_happened': 1, 'time_to_conversion_seconds': 70.0},\n            confidence=0.8,\n            response_time=0.0,\n            miner_uid=0\n        )\n    \n        # Create our own validator instance\n        validator = MagicMock()\n        validator.dendrite = AsyncMock()\n        validator.dendrite.query = AsyncMock(return_value=[response])\n        validator.update_scores = MagicMock()\n        validator.conversation_history = {}\n        validator.metagraph = MagicMock()\n        validator.metagraph.axons = [MagicMock()]\n    \n        # Override behavior with a simple test\n        with patch('conversion_subnet.utils.uids.get_random_uids', return_value=[0]):\n            with patch('conversion_subnet.validator.generate.generate_conversation', return_value=sample_features):\n                with patch('conversion_subnet.validator.utils.validate_features', return_value=sample_features):\n>                   with patch('conversion_subnet.validator.forward.generate_ground_truth', return_value={'conversion_happened': 1, 'time_to_conversion_seconds': 60.0}):\n\ntests/unit/validator/test_forward.py:142: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n../../../../.pyenv/versions/3.10.15/lib/python3.10/unittest/mock.py:1447: in __enter__\n    original, local = self.get_original()\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = <unittest.mock._patch object at 0x1261503a0>\n\n    def get_original(self):\n        target = self.getter()\n        name = self.attribute\n    \n        original = DEFAULT\n        local = False\n    \n        try:\n            original = target.__dict__[name]\n        except (AttributeError, KeyError):\n            original = getattr(target, name, DEFAULT)\n        else:\n            local = True\n    \n        if name in _builtins and isinstance(target, ModuleType):\n            self.create = True\n    \n        if not self.create and original is DEFAULT:\n>           raise AttributeError(\n                \"%s does not have the attribute %r\" % (target, name)\n            )\nE           AttributeError: <function forward at 0x123084a60> does not have the attribute 'generate_ground_truth'\n\n../../../../.pyenv/versions/3.10.15/lib/python3.10/unittest/mock.py:1420: AttributeError"
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "generated_at": "2025-05-03T15:58:49.793808",
+    "log_count": 3
+  }
+}

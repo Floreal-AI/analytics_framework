@@ -1,0 +1,18 @@
+{
+  "exitstatus": 1,
+  "test_counts": {
+    "total": 52,
+    "passed": 15,
+    "failed": 1,
+    "skipped": 0,
+    "errors": 0
+  },
+  "duration": 0.6914658546447754,
+  "failed_tests": [
+    {
+      "name": "tests/unit/miner/test_train.py::TestModelTraining::test_save_model",
+      "duration": 0.0018334159976802766,
+      "error_message": "self = <test_train.TestModelTraining object at 0x1380fece0>\nmock_save = <MagicMock name='save' id='5234800576'>\ntmp_checkpoint_dir = PosixPath('/private/var/folders/wg/544yksrd18q2wtz1fyftdm400000gn/T/pytest-of-admin/pytest-7/test_save_model0/checkpoints')\n\n    @patch('torch.save')\n    def test_save_model(self, mock_save, tmp_checkpoint_dir):\n        \"\"\"Test save_model function.\"\"\"\n        # Create mock miner with mock model\n        mock_miner = MagicMock()\n        mock_model = MagicMock()\n        mock_miner.model = mock_model\n    \n        # Mock state_dict to return a dictionary\n        mock_model.state_dict.return_value = {\"layer1.weight\": torch.randn(5, 5)}\n    \n        # Call save_model\n        save_model(mock_miner, tmp_checkpoint_dir, \"test_model.pt\")\n    \n        # Check that the file was created\n>       assert (tmp_checkpoint_dir / \"test_model.pt\").exists()\nE       AssertionError: assert False\nE        +  where False = exists()\nE        +    where exists = (PosixPath('/private/var/folders/wg/544yksrd18q2wtz1fyftdm400000gn/T/pytest-of-admin/pytest-7/test_save_model0/checkpoints') / 'test_model.pt').exists\n\ntests/unit/miner/test_train.py:205: AssertionError"
+    }
+  ]
+}

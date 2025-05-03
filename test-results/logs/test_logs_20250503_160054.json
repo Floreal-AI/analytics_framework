@@ -1,0 +1,117 @@
+{
+  "logs": [
+    {
+      "timestamp": "2025-05-03T16:00:53.526392",
+      "level": "INFO",
+      "message": "Starting test session",
+      "metadata": {
+        "test_dir": "/Users/admin/Documents/PersonalProjects/bittensor/analytics_framework/test-results"
+      }
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.533878",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.550193",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.556284",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.562094",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.566423",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=32, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=32, out_features=16, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=16, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.571104",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.575949",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.580897",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.584423",
+      "level": "ERROR",
+      "message": "Error in forward: mat1 and mat2 shapes cannot be multiplied (1x0 and 40x16)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.588982",
+      "level": "INFO",
+      "message": "Initialized binary classification miner with model: Sequential(\n  (0): Linear(in_features=40, out_features=64, bias=True)\n  (1): ReLU()\n  (2): Linear(in_features=64, out_features=32, bias=True)\n  (3): ReLU()\n  (4): Linear(in_features=32, out_features=1, bias=True)\n  (5): Sigmoid()\n)",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.670359",
+      "level": "INFO",
+      "message": "Epoch 1/1 - train_loss: 0.5000, train_acc: 0.7500, val_loss: 0.5000, val_acc: 0.7500",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.673513",
+      "level": "INFO",
+      "message": "Saved model checkpoint to /private/var/folders/wg/544yksrd18q2wtz1fyftdm400000gn/T/pytest-of-admin/pytest-7/test_save_model0/checkpoints/test_model.pt",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:53.748906",
+      "level": "INFO",
+      "message": "Test session completed",
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-05-03T16:00:54.133131",
+      "level": "INFO",
+      "message": "Test session finished with exit status 1",
+      "metadata": {
+        "exitstatus": 1,
+        "test_counts": {
+          "total": 52,
+          "passed": 15,
+          "failed": 1,
+          "skipped": 0,
+          "errors": 0
+        },
+        "duration": 0.6914658546447754,
+        "failed_tests": [
+          {
+            "name": "tests/unit/miner/test_train.py::TestModelTraining::test_save_model",
+            "duration": 0.0018334159976802766,
+            "error_message": "self = <test_train.TestModelTraining object at 0x1380fece0>\nmock_save = <MagicMock name='save' id='5234800576'>\ntmp_checkpoint_dir = PosixPath('/private/var/folders/wg/544yksrd18q2wtz1fyftdm400000gn/T/pytest-of-admin/pytest-7/test_save_model0/checkpoints')\n\n    @patch('torch.save')\n    def test_save_model(self, mock_save, tmp_checkpoint_dir):\n        \"\"\"Test save_model function.\"\"\"\n        # Create mock miner with mock model\n        mock_miner = MagicMock()\n        mock_model = MagicMock()\n        mock_miner.model = mock_model\n    \n        # Mock state_dict to return a dictionary\n        mock_model.state_dict.return_value = {\"layer1.weight\": torch.randn(5, 5)}\n    \n        # Call save_model\n        save_model(mock_miner, tmp_checkpoint_dir, \"test_model.pt\")\n    \n        # Check that the file was created\n>       assert (tmp_checkpoint_dir / \"test_model.pt\").exists()\nE       AssertionError: assert False\nE        +  where False = exists()\nE        +    where exists = (PosixPath('/private/var/folders/wg/544yksrd18q2wtz1fyftdm400000gn/T/pytest-of-admin/pytest-7/test_save_model0/checkpoints') / 'test_model.pt').exists\n\ntests/unit/miner/test_train.py:205: AssertionError"
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "generated_at": "2025-05-03T16:00:54.166436",
+    "log_count": 15
+  }
+}
