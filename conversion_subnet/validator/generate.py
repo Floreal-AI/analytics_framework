@@ -1,4 +1,3 @@
-
 import uuid
 import random
 import numpy as np
@@ -16,29 +15,23 @@ fake = Faker()
 
 def generate_conversation() -> Dict:
     """
-    Generate a single synthetic conversation entry with 40 features for the AI Agent Task Performance Subnet.
-    Features match the dataset format for training or testing, excluding target variables (conversion_happened,
-    time_to_conversion_seconds, time_to_conversion_minutes). Designed for validators to create one row at a time,
-    simulating real-time conversation data.
-
-    Features include:
-    - session_id: Unique UUID
-    - Conversation metrics: duration, messages per minute, total messages, user/agent message counts, message ratio
-    - Timing metrics: response times (first, average, max, min, agent, user), standard deviation, max gap
-    - Message lengths: average, max, min for user and agent, total characters
-    - Question metrics: count and rate for agent and user, repeated questions
-    - Entity metrics: count, target entity presence, confidence (average, min), collection rate
-    - Interaction patterns: sequential messages, alternation rate
-    - Context: hour of day, day of week, business hours, weekend
-
+    Generate a synthetic conversation with realistic features.
+    
+    This is used to simulate real-time conversations for testing and development.
+    All 40 features are generated with realistic distributions.
+    
     Returns:
-        Dict: Conversation data with 40 features (no targets).
+        Dict: Dictionary of 40 conversation features
     """
+    # Generate a unique session ID
+    session_id = str(uuid.uuid4())
+    
     # Feature distributions based on example dataset (15 conversations)
     features = {
+        'session_id': session_id,
         'conversation_duration_seconds': round(float(np.clip(np.random.normal(100.0, 20.0), 60.0, 150.0)), 2),
-        'hour_of_day': random.randint(8, 19),  # Working hours: 8 AM to 7 PM
-        'day_of_week': random.randint(0, 6),   # 0 (Sunday) to 6 (Saturday)
+        'hour_of_day': int(random.randint(8, 19)),  # Working hours: 8 AM to 7 PM
+        'day_of_week': int(random.randint(0, 6)),   # 0 (Sunday) to 6 (Saturday)
         'time_to_first_response_seconds': round(float(np.clip(np.random.normal(10.0, 3.0), 5.0, 20.0)), 2),
         'avg_response_time_seconds': round(float(np.clip(np.random.normal(15.0, 2.0), 10.0, 20.0)), 2),
         'max_response_time_seconds': round(float(np.clip(np.random.normal(18.0, 2.5), 15.0, 25.0)), 2),
@@ -50,34 +43,67 @@ def generate_conversation() -> Dict:
         'total_messages': int(np.clip(np.random.normal(8.0, 2.0), 4, 20)),
         'message_ratio': round(float(np.clip(np.random.normal(1.3, 0.3), 1.0, 2.0)), 2),
         'avg_message_length_user': round(float(np.clip(np.random.normal(40.0, 5.0), 20.0, 60.0)), 2),
-        'max_message_length_user': round(float(np.clip(np.random.normal(50.0, 5.0), 30.0, 70.0)), 2),
-        'min_message_length_user': round(float(np.clip(np.random.normal(30.0, 5.0), 15.0, 45.0)), 2),
+        'max_message_length_user': int(np.clip(np.random.normal(50.0, 5.0), 30.0, 70.0)),
+        'min_message_length_user': int(np.clip(np.random.normal(30.0, 5.0), 15.0, 45.0)),
         'avg_message_length_agent': round(float(np.clip(np.random.normal(75.0, 10.0), 50.0, 100.0)), 2),
-        'max_message_length_agent': round(float(np.clip(np.random.normal(100.0, 15.0), 70.0, 130.0)), 2),
-        'min_message_length_agent': round(float(np.clip(np.random.normal(50.0, 10.0), 30.0, 80.0)), 2),
+        'max_message_length_agent': int(np.clip(np.random.normal(100.0, 15.0), 70.0, 130.0)),
+        'min_message_length_agent': int(np.clip(np.random.normal(50.0, 10.0), 30.0, 80.0)),
         'question_count_agent': int(np.clip(np.random.normal(3.0, 1.0), 1, 5)),
         'question_count_user': int(np.clip(np.random.normal(1.0, 0.5), 0, 3)),
         'sequential_user_messages': int(np.clip(np.random.normal(2.0, 1.0), 1, 4)),
-        'sequential_agent_messages': 1,  # Typically 1, as agent responses are non-sequential
+        'sequential_agent_messages': int(1),  # Typically 1, as agent responses are non-sequential
         'entities_collected_count': int(np.clip(np.random.normal(4.0, 1.5), 1, 6)),
-        'has_target_entity': random.choice([0, 1]),
+        'has_target_entity': int(random.choice([0, 1])),
         'avg_entity_confidence': round(float(np.clip(np.random.normal(0.9, 0.02), 0.8, 0.95)), 3),
         'min_entity_confidence': round(float(np.clip(np.random.normal(0.85, 0.03), 0.8, 0.9)), 3),
-        'entity_collection_rate': 0,  # Typically 0 in example dataset
-        'repeated_questions': random.choice([0, 1]),
+        'entity_collection_rate': 0.0,  # Typically 0 in example dataset
+        'repeated_questions': int(random.choice([0, 1])),
         'message_alternation_rate': round(float(np.clip(np.random.normal(0.9, 0.1), 0.7, 1.0)), 3)
     }
+
+    # Preprocess features to ensure correct integer types
+    features = preprocess_features(features)
 
     # Validate features using utils to ensure logical consistency
     validated_features = validate_features(features)
 
-    # Combine features with session_id
-    conversation = {
-        'session_id': str(uuid.uuid4()),
-        **validated_features
-    }
+    return validated_features
 
-    return conversation
+def preprocess_features(features: Dict) -> Dict:
+    """
+    Preprocess features to ensure correct data types, especially for integer fields.
+    
+    Args:
+        features (Dict): Dictionary of conversation features
+        
+    Returns:
+        Dict: Dictionary with corrected data types
+    """
+    # List of integer fields that must be integers, not floats
+    integer_fields = [
+        'hour_of_day', 'day_of_week', 'is_business_hours', 'is_weekend',
+        'total_messages', 'user_messages_count', 'agent_messages_count',
+        'max_message_length_user', 'min_message_length_user', 'total_chars_from_user',
+        'max_message_length_agent', 'min_message_length_agent', 'total_chars_from_agent',
+        'question_count_agent', 'question_count_user', 'sequential_user_messages',
+        'sequential_agent_messages', 'entities_collected_count', 'has_target_entity',
+        'repeated_questions'
+    ]
+    
+    # Convert any float values to integers for integer fields
+    for field in integer_fields:
+        if field in features and features[field] is not None:
+            try:
+                features[field] = int(features[field])
+            except (ValueError, TypeError):
+                # If conversion fails, use a default value
+                features[field] = 0
+    
+    # Ensure session_id is a string
+    if 'session_id' in features:
+        features['session_id'] = str(features['session_id'])
+    
+    return features
 
 def generate_conversations(num_conversations: int, path: str) -> None:
     """

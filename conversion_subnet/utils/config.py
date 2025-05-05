@@ -174,4 +174,23 @@ def config(cls):
     bt.logging.add_args(parser)
     bt.axon.add_args(parser)
     cls.add_args(parser)
-    return bt.config(parser)
+    
+    # Get the config and ensure it's properly initialized
+    config_obj = bt.config(parser)
+    
+    # Set crucial defaults if not present
+    if not hasattr(config_obj, 'neuron') or config_obj.neuron is None:
+        config_obj.neuron = bt.config()
+    
+    if not hasattr(config_obj.neuron, 'device') or config_obj.neuron.device is None:
+        config_obj.neuron.device = 'cpu'
+        
+    if not hasattr(config_obj, 'miner') or config_obj.miner is None:
+        config_obj.miner = bt.config()
+        
+    if not hasattr(config_obj.miner, 'device') or config_obj.miner.device is None:
+        # Use a default CPU device if neuron.device is somehow still None
+        neuron_device = getattr(config_obj.neuron, 'device', None)
+        config_obj.miner.device = neuron_device if neuron_device is not None else 'cpu'
+
+    return config_obj
