@@ -171,14 +171,14 @@ def score_prediction(ground_truth, prediction, confidence, response_time):
 
 ```bash
 # Run with custom settings
-python -m neurons.validator --neuron.sample_size 15 --neuron.alpha_prediction 0.9
+python -m neurons.validator --netuid X --subtensor.chain_endpoint ws://127.0.0.1:99XX --subtensor.network local --wallet.name validator --wallet.hotkey default --logging.debug --neuron.sample_size XX
 ```
 
 ### Miner Configuration
 
 ```bash
 # Run with custom device
-python -m neurons.miner --miner.device "cuda" --neuron.wallet.name "miner_wallet"
+python -m neurons.miner --netuid X --subtensor.chain_endpoint ws://127.0.0.1:99XX --subtensor.network local --wallet.name miner --wallet.hotkey default --logging.debug
 ```
 
 ## Understanding the Scores
