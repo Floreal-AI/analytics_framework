@@ -36,12 +36,15 @@ def regression(pred: Dict, true: Dict, baseline: float = BASELINE_MAE) -> float:
     return max(1.0 - mae / baseline, 0.0)
 
 def diversity(confidence: Union[float, NDArray, None]) -> Union[float, NDArray]:
-    """Confidence penalty (encourage bold predictions)."""
+    """
+    Confidence penalty (encourage bold predictions) [Coming soon] 
+     It's currently a placeholder to avoid errors.
+    """
     # Handle numpy arrays with element-wise operations
-    if confidence is None:
-        return 1.0 - abs(0.5 - 0.5)
+    # if confidence is None:
+    #     return 1.0 - abs(0.5 - 0.5)
     # Instead of using 'or' which causes ambiguity with arrays, use np.where
-    return 1.0 - abs(confidence - 0.5)
+    return 0 # 1.0 - abs(confidence - 0.5)
 
 def latency(rt: Union[float, NDArray], timeout: float = TIMEOUT_SEC) -> Union[float, NDArray]:
     """Reward fast miners; zero once they exceed timeout."""

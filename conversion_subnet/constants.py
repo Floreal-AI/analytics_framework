@@ -28,8 +28,8 @@ TIME_SCALE_FACTOR: float = 0.7             # scale factor for time to conversion
 # Reward component weights
 PRED_W: Dict[str, float] = {               # prediction sub‑weights
     "classification": 0.55,                # weight for classification accuracy
-    "regression": 0.35,                    # weight for regression accuracy
-    "diversity": 0.10,                     # weight for prediction diversity
+    "regression": 0.45,                    # weight for regression accuracy
+    "diversity": 0.0,                     # weight for prediction diversity
 }
 TOTAL_REWARD_W: Dict[str, float] = {       # total reward weights
     "prediction": 0.80,                    # weight for prediction quality

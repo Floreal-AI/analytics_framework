@@ -99,6 +99,10 @@ def preprocess_features(features: Dict) -> Dict:
                 # If conversion fails, use a default value
                 features[field] = 0
     
+    # Ensure session_id is a string
+    if 'session_id' in features:
+        features['session_id'] = str(features['session_id'])
+    
     return features
 
 def generate_conversations(num_conversations: int, path: str) -> None:

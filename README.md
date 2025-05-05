@@ -149,15 +149,12 @@ def score_prediction(ground_truth, prediction, confidence, response_time):
     if class_reward > 0:
         class_reward *= CLASS_WEIGHTS['positive' if ground_truth['conversion_happened'] == 1 else 'negative']
     
-    # Regression reward (35% of prediction score)
+    # Regression reward (45% of prediction score)
     reg_reward = 0.0
     if prediction['conversion_happened'] == 1 and ground_truth['conversion_happened'] == 1:
         mae = abs(prediction['time_to_conversion_seconds'] - ground_truth['time_to_conversion_seconds'])
         reg_reward = max(1.0 - mae / BASELINE_MAE, 0.0)  # BASELINE_MAE = 15.0 seconds
-    
-    # Diversity reward (10% of prediction score)
-    div_reward = 1.0 - abs(confidence - 0.5)  # Encourages bold predictions
-    
+
     # Combine prediction components
     pred_reward = 0.55 * class_reward + 0.35 * reg_reward + 0.10 * div_reward
     

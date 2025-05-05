@@ -101,8 +101,23 @@ class BinaryClassificationMiner:
             PredictionOutput: Dictionary containing prediction and confidence
         """
         try:
-            # Convert features to tensor
-            features_values = list(synapse.features.values())
+            # Convert features to tensor with proper type handling
+            features_values = []
+            for value in synapse.features.values():
+                if isinstance(value, str):
+                    # Skip string values or convert to a numeric representation if needed
+                    continue
+                features_values.append(value)
+            
+            # Check if we have any features left after filtering
+            if not features_values:
+                logger.warning("No valid numeric features found in synapse")
+                return {
+                    'conversion_happened': 0,
+                    'time_to_conversion_seconds': -1.0,
+                    'confidence': 0.0
+                }
+            
             features = torch.tensor(features_values, dtype=torch.float32).to(self.device)
             
             # Get prediction
