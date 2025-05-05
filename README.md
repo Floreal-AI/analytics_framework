@@ -1,8 +1,5 @@
 # Bittensor Conversion Subnet: Predicting AI Agent Performance in Real-Time
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/opentensor/bittensor/master/docs/assets/logo.jpg" width="200" alt="Bittensor Logo"/>
-</div>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11-blue)](https://www.python.org/downloads/)
