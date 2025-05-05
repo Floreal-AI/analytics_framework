@@ -89,9 +89,6 @@ pip install -e .
 ```bash
 # Start a validator neuron
 python -m neurons.validator
-
-# Alternative using the CLI (if installed with pip install -e .)
-validator-conversion
 ```
 
 ### Running a Miner
@@ -99,9 +96,6 @@ validator-conversion
 ```bash
 # Start a miner neuron with default settings
 python -m neurons.miner
-
-# Alternative using the CLI (if installed with pip install -e .)
-miner-conversion
 ```
 
 ## Understanding the Data
@@ -187,8 +181,7 @@ Your miner's performance is measured by:
 
 1. **Classification Accuracy**: Can you correctly predict if a conversion will happen?
 2. **Regression Accuracy**: Can you precisely estimate the conversion time?
-3. **Prediction Boldness**: Are you making confident predictions (not hovering around 0.5)?
-4. **Response Speed**: Are you responding quickly to real-time requests?
+3. **Response Speed**: Are you responding quickly to real-time requests?
 
 The final score, used to determine rewards, is an exponential moving average (EMA) of these components.
 
