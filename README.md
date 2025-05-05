@@ -156,7 +156,7 @@ def score_prediction(ground_truth, prediction, confidence, response_time):
         reg_reward = max(1.0 - mae / BASELINE_MAE, 0.0)  # BASELINE_MAE = 15.0 seconds
 
     # Combine prediction components
-    pred_reward = 0.55 * class_reward + 0.35 * reg_reward + 0.10 * div_reward
+    pred_reward = 0.55 * class_reward + 0.35 * reg_reward
     
     # Time reward (20% of total score)
     time_reward = max(1.0 - response_time / 60.0, 0.0)  # 60-second timeout
