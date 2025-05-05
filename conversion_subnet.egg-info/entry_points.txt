@@ -1,3 +1,0 @@
-[console_scripts]
-miner-conversion = neurons.miner:cli
-validator-conversion = neurons.validator:cli

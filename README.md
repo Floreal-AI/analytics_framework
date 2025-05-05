@@ -1,291 +1,204 @@
-# Bittensor Subnet Competition: Evaluating and Improving AI Agent Performance in Real-Time Conversations
+# Bittensor Conversion Subnet: Predicting AI Agent Performance in Real-Time
 
+<div align="center">
+  <img src="https://raw.githubusercontent.com/opentensor/bittensor/master/docs/assets/logo.jpg" width="200" alt="Bittensor Logo"/>
+</div>
 
-Welcome to the Bittensor Subnet Competition, a decentralized challenge hosted on a Bittensor subnet to evaluate and enhance AI agent task performance in real-time conversational tasks. Participants deploy miners (AI models) to predict whether an AI agent (e.g., a "quote agent") will successfully complete its task—such as convincing a user to request a quote and delivering it—and the time taken to do so. Validators issue conversation challenges, score predictions, and set weights to drive Alpha Token rewards and self-improvement. Conversations arrive sequentially, requiring miners to submit predictions within a 60-second window.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11-blue)](https://www.python.org/downloads/)
 
-This competition leverages Bittensor's subnet architecture to foster innovation in AI agent development. By rewarding miners for accurate, timely predictions and validators for fair evaluations, the subnet creates a decentralized ecosystem where agents continuously improve their ability to perform tasks in dynamic conversations across industries like customer support and sales.
+A decentralized framework for evaluating and improving AI agent task performance in real-time conversations. This subnet allows participants to deploy models (miners) that predict whether an AI agent will successfully complete its conversion task and how long it will take.
 
 ## Overview
 
-### Datasets
+This subnet evaluates AI agents' ability to perform tasks in customer conversations, like convincing users to request quotes or complete transactions. Miners predict:
 
-#### Train Set (train.csv):
-A fixed dataset provided by the organizer for training AI models.
-Contains N sessions (to be specified upon receipt) with:
-40 Features: Conversation metrics (e.g., conversation_duration_seconds, has_target_entity).
-3 Target Variables: conversion_happened (1 if task succeeded, 0 otherwise), time_to_conversion_seconds (time to task completion if succeeded, -1.0 otherwise), time_to_conversion_minutes (seconds / 60).
+1. 🎯 `conversion_happened`: Will the agent successfully convince the user? (Binary: 0/1)
+2. ⏱️ `time_to_conversion_seconds`: How long will it take? (Seconds if converted, -1.0 if not)
 
-Format:
+Validators issue conversation challenges based on 40 conversation metrics, score predictions, and set weights to drive token rewards, creating a self-improving ecosystem.
 
-```plaintext
+## Features
+
+- 🔄 **Real-time evaluation**: Miners must respond to live conversation data within 60 seconds
+- 📊 **Rich feature set**: 40 conversation metrics for precise predictions
+- 💰 **Fair reward system**: Balanced scoring across classification, regression, and response time
+- 🧠 **Self-improvement loop**: Miners continuously improve with validator feedback
+- 🛠️ **Easy deployment**: Simple installation and configuration
+
+## Dataset
+
+### Train Set (train.csv)
+A fixed dataset provided for training AI models. Contains conversation sessions with:
+- 40 Features: Conversation metrics (e.g., conversation_duration_seconds, has_target_entity)
+- 3 Target Variables: conversion_happened (1 if task succeeded, 0 otherwise), time_to_conversion_seconds (time to task completion if succeeded, -1.0 otherwise), time_to_conversion_minutes (seconds / 60)
+
+#### Format:
+
+```
 session_id,conversation_duration_seconds,conversation_duration_minutes,hour_of_day,day_of_week,is_business_hours,is_weekend,time_to_first_response_seconds,avg_response_time_seconds,max_response_time_seconds,min_response_time_seconds,avg_agent_response_time_seconds,avg_user_response_time_seconds,response_time_stddev,response_gap_max,messages_per_minute,total_messages,user_messages_count,agent_messages_count,message_ratio,avg_message_length_user,max_message_length_user,min_message_length_user,total_chars_from_user,avg_message_length_agent,max_message_length_agent,min_message_length_agent,total_chars_from_agent,question_count_agent,questions_per_agent_message,question_count_user,questions_per_user_message,sequential_user_messages,sequential_agent_messages,entities_collected_count,has_target_entity,avg_entity_confidence,min_entity_confidence,entity_collection_rate,repeated_questions,message_alternation_rate,conversion_happened,time_to_conversion_seconds,time_to_conversion_minutes
-  ```
-
-Example Row (hypothetical):
-```plaintext
-fe093ea6-8fb3-4856-9aee-05673faaae11,92.0,1.5333333333333334,13,2,1,0,7.0,11.5,15.0,7.0,11.75,11.666666666666666,2.8722813232690143,15.0,5.869565217391304,9,5,4,1.25,47.0,62,25,235,84.0,120,53,336,3,0.75,0,0.0,2,1,5,1,0.9200000000000002,0.8,0,0,0.875,1,62.0,1.0333333333333334
-  ```
-#### Test Set (Dynamic, Real-Time Conversations):
-A stream of actual conversations arriving sequentially via the subnet.
-Each conversation provides the same 40 features, but no targets.
-Miners predict conversion_happened and time_to_conversion_seconds.
-Format: Identical to train set features:
-
-```plaintext
-session_id,conversation_duration_seconds,conversation_duration_minutes,hour_of_day,day_of_week,is_business_hours,is_weekend,time_to_first_response_seconds,avg_response_time_seconds,max_response_time_seconds,min_response_time_seconds,avg_agent_response_time_seconds,avg_user_response_time_seconds,response_time_stddev,response_gap_max,messages_per_minute,total_messages,user_messages_count,agent_messages_count,message_ratio,avg_message_length_user,max_message_length_user,min_message_length_user,total_chars_from_user,avg_message_length_agent,max_message_length_agent,min_message_length_agent,total_chars_from_agent,question_count_agent,questions_per_agent_message,question_count_user,questions_per_user_message,sequential_user_messages,sequential_agent_messages,entities_collected_count,has_target_entity,avg_entity_confidence,min_entity_confidence,entity_collection_rate,repeated_questions,message_alternation_rate
-  ```
-
-
-
-#### Ground Truth (Dynamic, Private):
-True targets for test conversations, generated post-conversation based on AI agent task success (e.g., convincing user and providing a quote).
-
-```plaintext
-session_id,conversion_happened,time_to_conversion_seconds
-e29b3b9d-d5c6-4007-9da7-3d449b3bd89c,1,67.53160202861642
-e2849720-2b33-4bd9-8690-ba35bafbfec3,0,-1.0
-  ```
-
-### Roles
-
-#### Miners:
-Deploy AI models to predict task success (conversion_happened) and time (time_to_conversion_seconds).
-Compete for Alpha Token rewards based on validator scores, driving self-improvement through model refinement.
-
-
-
-#### Validators:
-Send conversation features to miners, evaluate predictions against ground truth.
-
-## Objectives
-Predict Task Success: Determine if the AI agent will succeed in its task (conversion_happened = 1) or not (conversion_happened = 0).
-Predict Task Time: Estimate time_to_conversion_seconds for successful tasks, -1.0 otherwise.
-Drive Self-Improvement: Use validator scores to refine models, enhancing task performance.
-
-
-## Incentive Mechanism
-
-### Challenge
-Validators send a ConversionSynapse object containing 40 conversation features (e.g., conversation_duration_seconds, has_target_entity) to miners.
-Features are serialized as a JSON dictionary.
-Miners must respond within 60 seconds to align with real-time requirements.
-
-### Miner Response
-Miners predict:
-conversion_happened: Binary (0 or 1).
-time_to_conversion_seconds: Positive float if conversion_happened = 1, -1.0 if conversion_happened = 0.
-Predictions are attached to the ConversionSynapse and returned to validators.
-
-### Scoring
-
-```python
-import numpy as np
-
-# Scoring functions for the Incentive Mechanism
-
-def classification_reward(predicted, true, class_weights):
-    """
-    Compute Classification Reward for a single conversation.
-    - Returns 1 if predicted conversion_happened matches true value, 0 otherwise.
-    - Applies class-weight penalty to handle imbalance (~62.5% conversions).
-    - class_weights: Dict with 'positive' and 'negative' weights (e.g., {'positive': 0.375, 'negative': 0.625}).
-    - Weights are estimated from historical data, updated periodically (e.g., every 100 conversations).
-    """
-    correct = predicted['conversion_happened'] == true['conversion_happened']
-    reward = 1.0 if correct else 0.0
-    # Apply class-weight penalty
-    if correct and true['conversion_happened'] == 1:
-        reward *= class_weights['positive']  # e.g., 0.375 for positives
-    elif correct and true['conversion_happened'] == 0:
-        reward *= class_weights['negative']  # e.g., 0.625 for negatives
-    return reward
-
-def regression_reward(predicted, true):
-    """
-    Compute Regression Reward for a single conversation.
-    - For conversations where both predicted and true conversion_happened = 1, compute MAE.
-    - Normalize MAE with baseline (~15.0) to get Regression Score.
-    - Returns 0 if no correct conversion prediction.
-    - Baseline MAE (~15.0) is estimated from ground truth sample std (11.74); adjustable with train set data.
-    """
-    if predicted['conversion_happened'] == 1 and true['conversion_happened'] == 1:
-        mae = abs(predicted['time_to_conversion_seconds'] - true['time_to_conversion_seconds'])
-        regression_score = max(1 - mae / 15.0, 0)  # Baseline MAE ~15.0
-        return regression_score
-    return 0.0
-
-def diversity_reward(confidence):
-    """
-    Compute Diversity Reward (Confidence Penalty) for a single conversation.
-    - Uses predicted probability for conversion_happened (from model's predict_proba).
-    - Penalizes conservative predictions (near 0.5) to encourage bold, unique predictions.
-    """
-    confidence = confidence or 0.5  # Default if not provided
-    confidence_penalty = 1 - abs(confidence - 0.5)
-    return confidence_penalty
-
-def time_reward(response_time):
-    """
-    Compute Time Reward for a single conversation.
-    - Rewards fast responses (within 60 seconds) for real-time performance.
-    """
-    return max(1 - response_time / 60, 0)
-
-def prediction_reward(class_reward, reg_score, div_reward):
-    """
-    Combine Classification, Regression, and Diversity Rewards.
-    - Weights: 55% classification, 35% regression, 10% diversity.
-    - 55% classification reflects task success priority.
-    - 35% regression ensures timing accuracy, leveraging large train set.
-    - 10% confidence penalty promotes diversity without batch dependency.
-    """
-    return 0.55 * class_reward + 0.35 * reg_score + 0.1 * div_reward
-
-def total_reward(pred_reward, time_reward):
-    """
-    Compute Total Reward, balancing prediction quality and speed.
-    - Weights: 80% prediction, 20% time.
-    - 20% time reward emphasizes real-time needs, balanced to avoid sacrificing quality.
-    """
-    return 0.8 * pred_reward + 0.2 * time_reward
-
-def update_ema(current_reward, previous_ema, beta=0.1):
-    """
-    Update EMA Score for a miner.
-    - Smooths rewards for stability over sequential conversations.
-    - beta = 0.1 balances responsiveness and consistency.
-    """
-    return beta * current_reward + (1 - beta) * previous_ema
-
-def normalize_weights(ema_scores, num_miners=192):
-    """
-    Normalize EMA scores to create a weight vector for miners.
-    - Weights are submitted to the blockchain, aggregated via Yuma Consensus.
-    - Combined with stake to allocate TAO emissions every tempo.
-    - Validators align scores to maximize V-Trust, ensuring fairness.
-    """
-    weights = np.array([ema_scores.get(uid, 0.0) for uid in range(num_miners)])
-    total = np.sum(weights)
-    return weights / total if total > 0 else np.zeros(num_miners)
-
-# Example Validator class for scoring miners
-class Validator:
-    def __init__(self):
-        self.class_weights = {'positive': 0.375, 'negative': 0.625}  # Initial weights
-        self.ema_scores = {}  # Miner UID to EMA score
-        self.ground_truth_history = []  # Store ground truth for weight updates
-
-    def score_miner(self, synapse, ground_truth):
-        """Score a single miner's prediction."""
-        predicted = synapse.prediction
-        true = ground_truth
-        # Compute rewards
-        class_reward = classification_reward(predicted, true, self.class_weights)
-        reg_score = regression_reward(predicted, true)
-        div_reward = diversity_reward(synapse.confidence)
-        pred_reward = prediction_reward(class_reward, reg_score, div_reward)
-        time_reward = time_reward(synapse.response_time)
-        total_reward = total_reward(pred_reward, time_reward)
-        # Update EMA score
-        miner_uid = synapse.miner_uid
-        previous_ema = self.ema_scores.get(miner_uid, 0.0)
-        self.ema_scores[miner_uid] = update_ema(total_reward, previous_ema)
-        # Store ground truth for class weight updates
-        self.ground_truth_history.append(true)
-        # Periodically update class weights (e.g., every 100 conversations)
-        if len(self.ground_truth_history) % 100 == 0:
-            self.update_class_weights()
-        return total_reward
-
-    def update_class_weights(self):
-        """Update class weights based on historical ground truth."""
-        positives = sum(1 for gt in self.ground_truth_history if gt['conversion_happened'] == 1)
-        negatives = len(self.ground_truth_history) - positives
-        total = positives + negatives
-        self.class_weights = {
-            'positive': negatives / total if total > 0 else 0.5,
-            'negative': positives / total if total > 0 else 0.5
-        }
-
-    def set_weights(self):
-        """Set normalized weights for miners."""
-        return normalize_weights(self.ema_scores)
-
-# Example usage in a notebook
-if __name__ == "__main__":
-    # Mock synapse and ground truth for testing
-    synapse = ConversionSynapse(
-        prediction={'conversion_happened': 1, 'time_to_conversion_seconds': 70.0},
-        confidence=0.8,
-        response_time=10.0,
-        miner_uid=1
-    )
-    ground_truth = {'conversion_happened': 1, 'time_to_conversion_seconds': 67.53}
-    validator = Validator()
-    reward = validator.score_miner(synapse, ground_truth)
-    print(f"Total Reward: {reward:.4f}")
-    print(f"EMA Score for Miner 1: {validator.ema_scores[1]:.4f}")
-
-   ```
-
-## Installation
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/Floreal-AI/analytics_framework.git
-   cd analytics_framework
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Ensure Python 3.8–3.11 and Bittensor are installed.
-
-## Running the Subnet
-
-### Validator
-
-Run a validator to generate data and score miner responses:
-
-```bash
-python -m neurons.validator
 ```
 
-### Miner
+#### Example Row:
 
-Run a miner to predict conversion outcomes:
+```
+fe093ea6-8fb3-4856-9aee-05673faaae11,92.0000,1.5333,13,2,1,0,7.0000,11.5000,15.0000,7.0000,11.7500,11.6667,2.8723,15.0000,5.8696,9,5,4,1.2500,47.0000,62,25,235,84.0000,120,53,336,3,0.7500,0,0.0000,2,1,5,1,0.9200,0.8000,0.0000,0,0.8750,1,62.0000,1.0333
+```
+
+### Test Set (Dynamic, Real-Time Conversations)
+A stream of actual conversations arriving sequentially via the subnet. Each conversation provides the same 40 features, but no targets.
+
+#### Format (Input to Miners):
+
+```
+session_id,conversation_duration_seconds,conversation_duration_minutes,hour_of_day,day_of_week,is_business_hours,is_weekend,time_to_first_response_seconds,avg_response_time_seconds,max_response_time_seconds,min_response_time_seconds,avg_agent_response_time_seconds,avg_user_response_time_seconds,response_time_stddev,response_gap_max,messages_per_minute,total_messages,user_messages_count,agent_messages_count,message_ratio,avg_message_length_user,max_message_length_user,min_message_length_user,total_chars_from_user,avg_message_length_agent,max_message_length_agent,min_message_length_agent,total_chars_from_agent,question_count_agent,questions_per_agent_message,question_count_user,questions_per_user_message,sequential_user_messages,sequential_agent_messages,entities_collected_count,has_target_entity,avg_entity_confidence,min_entity_confidence,entity_collection_rate,repeated_questions,message_alternation_rate
+```
+
+#### Ground Truth (Dynamic, Private):
+True targets for test conversations, generated post-conversation based on AI agent task success.
+
+```
+session_id,conversion_happened,time_to_conversion_seconds
+e29b3b9d-d5c6-4007-9da7-3d449b3bd89c,1,67.5316
+e2849720-2b33-4bd9-8690-ba35bafbfec3,0,-1.0000
+```
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.8-3.11
+- Linux, macOS, or Windows
+
+### Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/Floreal-AI/analytics_framework.git
+cd analytics_framework
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Optional: Install in development mode
+pip install -e .
+```
+
+### Running a Validator
+
+```bash
+# Start a validator neuron
+python -m neurons.validator
+
+# Alternative using the CLI (if installed with pip install -e .)
+validator-conversion
+```
+
+### Running a Miner
+
+```bash
+# Start a miner neuron with default settings
 python -m neurons.miner
+
+# Alternative using the CLI (if installed with pip install -e .)
+miner-conversion
+```
+
+## Understanding the Data
+
+### Conversation Features (Input)
+
+Miners receive 40 conversation metrics, including:
+
+```python
+{
+    'session_id': 'fe093ea6-8fb3-4856-9aee-05673faaae11',
+    'conversation_duration_seconds': 92.0000,
+    'has_target_entity': 1,
+    'entities_collected_count': 5,
+    'message_ratio': 1.2500,
+    'total_messages': 9,
+    'user_messages_count': 5,
+    'agent_messages_count': 4,
+    # ... and many more metrics
+}
+```
+
+### Prediction Output
+
+Miners must return:
+
+```python
+{
+    'conversion_happened': 1,  # 1 = conversion successful, 0 = unsuccessful
+    'time_to_conversion_seconds': 62.0000  # Time to conversion or -1.0 if no conversion
+}
+```
+
+## How the Reward System Works
+
+The scoring system balances multiple factors to ensure accurate, timely, and diverse predictions:
+
+```python
+# Example of how a miner's prediction is scored
+def score_prediction(ground_truth, prediction, confidence, response_time):
+    # Classification reward (55% of prediction score)
+    class_reward = 1.0 if prediction['conversion_happened'] == ground_truth['conversion_happened'] else 0.0
+    
+    # Apply class weights to handle imbalance
+    if class_reward > 0:
+        class_reward *= CLASS_WEIGHTS['positive' if ground_truth['conversion_happened'] == 1 else 'negative']
+    
+    # Regression reward (35% of prediction score)
+    reg_reward = 0.0
+    if prediction['conversion_happened'] == 1 and ground_truth['conversion_happened'] == 1:
+        mae = abs(prediction['time_to_conversion_seconds'] - ground_truth['time_to_conversion_seconds'])
+        reg_reward = max(1.0 - mae / BASELINE_MAE, 0.0)  # BASELINE_MAE = 15.0 seconds
+    
+    # Diversity reward (10% of prediction score)
+    div_reward = 1.0 - abs(confidence - 0.5)  # Encourages bold predictions
+    
+    # Combine prediction components
+    pred_reward = 0.55 * class_reward + 0.35 * reg_reward + 0.10 * div_reward
+    
+    # Time reward (20% of total score)
+    time_reward = max(1.0 - response_time / 60.0, 0.0)  # 60-second timeout
+    
+    # Final reward
+    return 0.80 * pred_reward + 0.20 * time_reward
 ```
 
 ## Configuration
 
-- **Validator Config**: Adjust `neuron.timeout` and `neuron.alpha_prediction` in the validator script or config file.
-- **Miner Enhancements**: Improve the baseline miner by implementing machine learning models (e.g., using `scikit-learn`).
+### Validator Configuration
 
-## Dataset
+```bash
+# Run with custom settings
+python -m neurons.validator --neuron.sample_size 15 --neuron.alpha_prediction 0.9
+```
 
-The subnet uses synthetic data based on the following features:
+### Miner Configuration
 
-- `interaction_duration`: Mean 117.13s, std 12.36
-- `question_count`: Mean 5.53, std 1.08
-- `sentiment_score`: Mean 0.71, std 0.09
-- ... (see `validator/generate.py` for full list)
+```bash
+# Run with custom device
+python -m neurons.miner --miner.device "cuda" --neuron.wallet.name "miner_wallet"
+```
 
-**Targets**:
+## Understanding the Scores
 
-- `quote_delivery_time`: Continuous (mean \~108s, target ≤90s)
-- `quote_acceptance`: Binary (mean 80%, target ≥85%)
+Your miner's performance is measured by:
+
+1. **Classification Accuracy**: Can you correctly predict if a conversion will happen?
+2. **Regression Accuracy**: Can you precisely estimate the conversion time?
+3. **Prediction Boldness**: Are you making confident predictions (not hovering around 0.5)?
+4. **Response Speed**: Are you responding quickly to real-time requests?
+
+The final score, used to determine rewards, is an exponential moving average (EMA) of these components.
 
 ## Contributing
 
-See `contrib/CONTRIBUTING.md` for guidelines. Submit issues or PRs to improve miners, validators, or documentation.
+Contributions are welcome! See [CONTRIBUTING.md](contrib/CONTRIBUTING.md) for details.
 
 ## License
 
-MIT License. See `LICENSE` for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

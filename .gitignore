@@ -172,7 +172,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-test-results/
+test-results/*
 logs/
 reports/
 junit.xml
