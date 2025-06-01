@@ -110,8 +110,19 @@ class TestForward:
         prediction = {'conversion_happened': 0, 'time_to_conversion_seconds': 0.0}
         assert validate_prediction(prediction) is False
         
-        # Invalid types
+        # Test that string types can be converted (this should pass because validation converts types)
         prediction = {'conversion_happened': '1', 'time_to_conversion_seconds': '60.0'}
+        assert validate_prediction(prediction) is True
+        # After validation, values should be converted to proper types
+        assert prediction['conversion_happened'] == 1
+        assert prediction['time_to_conversion_seconds'] == 60.0
+        
+        # Test invalid string that can't be converted
+        prediction = {'conversion_happened': 'invalid', 'time_to_conversion_seconds': '60.0'}
+        assert validate_prediction(prediction) is False
+        
+        # Test invalid string for time_to_conversion_seconds
+        prediction = {'conversion_happened': '1', 'time_to_conversion_seconds': 'invalid'}
         assert validate_prediction(prediction) is False
 
     @pytest.mark.asyncio

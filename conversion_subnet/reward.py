@@ -14,7 +14,7 @@ from .constants import (
     CLASS_W,          # {'positive': 0.375, 'negative': 0.625}
     BASELINE_MAE,     # 15.0
     PRED_W,           # {'classification': .55, 'regression': .35, 'diversity': .10}
-    TIME_W,           # 0.20
+    TOTAL_REWARD_W,   # {'prediction': 0.80, 'latency': 0.20}
     TIMEOUT_SEC,      # 60
 )
 
@@ -59,7 +59,7 @@ def prediction_score(cls_r: Union[float, NDArray], reg_r: Union[float, NDArray],
     return w["classification"] * cls_r + w["regression"] * reg_r + w["diversity"] * div_r
 
 def total_score(pred_r: Union[float, NDArray], time_r: Union[float, NDArray]) -> Union[float, NDArray]:
-    return (1 - TIME_W) * pred_r + TIME_W * time_r
+    return TOTAL_REWARD_W["prediction"] * pred_r + TOTAL_REWARD_W["latency"] * time_r
 
 # ──────────────────────────────────────────────────────────────────
 #   EMA helper for validator

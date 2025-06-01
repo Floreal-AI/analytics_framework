@@ -176,3 +176,6 @@ test-results/*
 logs/
 reports/
 junit.xml
+
+architectural_review/*
+conversion_subnet/data_api/data/*

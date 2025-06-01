@@ -7,3 +7,6 @@ scikit-learn>=1.2.0
 numpy>=1.23.0
 loguru>=0.6.0
 password-strength==0.0.3.post2
+aiohttp>=3.8.0
+pytest-asyncio>=0.21.0
+python-dotenv>=1.0.0
