@@ -1,18 +1,31 @@
-import time
-import bittensor as bt
-import numpy as np
-from typing import Dict, List
+"""
+Forward pass implementation for validators.
 
-from conversion_subnet.protocol import ConversionSynapse, ConversationFeatures, PredictionOutput
-from conversion_subnet.validator.reward import Validator
-from conversion_subnet.utils.uids import get_random_uids
+This module handles the core validator logic:
+1. Generate conversation features or get real data
+2. Query miners for predictions
+3. Validate predictions against external API
+4. Calculate and assign rewards
+"""
+
+import time
+import uuid
+import numpy as np
+from typing import Dict, List, Optional
+
+import bittensor as bt
+
+from conversion_subnet.constants import SAMPLE_SIZE, TIMEOUT_SEC
+from conversion_subnet.protocol import ConversionSynapse
+from conversion_subnet.utils.log import logger
 from conversion_subnet.validator.generate import generate_conversation
 from conversion_subnet.validator.utils import validate_features, log_metrics
-from conversion_subnet.utils.log import logger
-from conversion_subnet.constants import (
-    TIMEOUT_SEC, SAMPLE_SIZE, REQUIRED_FEATURES,
-    ENTITY_THRESHOLD, MESSAGE_RATIO_THRESHOLD, MIN_CONVERSATION_DURATION,
-    TIME_SCALE_FACTOR, MIN_CONVERSION_TIME
+from conversion_subnet.validator.reward import Validator
+from conversion_subnet.utils.uids import get_random_uids
+from conversion_subnet.validator.validation_client import (
+    get_default_validation_client, 
+    ValidationError,
+    ValidationResult
 )
 
 def preprocess_features(features: Dict) -> Dict:
@@ -54,10 +67,53 @@ def preprocess_features(features: Dict) -> Dict:
     
     return result
 
+def preprocess_prediction(prediction: Dict) -> Dict:
+    """
+    Preprocess prediction to ensure fields are properly converted to their correct types.
+    
+    Args:
+        prediction (Dict): Dictionary with prediction data
+        
+    Returns:
+        Dict: Prediction with fields converted to correct types
+    """
+    if not prediction:
+        # Return a valid default prediction structure when prediction is empty
+        return {
+            'conversion_happened': 0,
+            'time_to_conversion_seconds': -1.0
+        }
+        
+    result = prediction.copy()
+    
+    # Ensure required fields exist
+    if 'conversion_happened' not in result:
+        result['conversion_happened'] = 0
+    
+    if 'time_to_conversion_seconds' not in result:
+        result['time_to_conversion_seconds'] = -1.0
+    
+    # Handle conversion_happened - should be an integer
+    try:
+        result['conversion_happened'] = int(result['conversion_happened'])
+    except (ValueError, TypeError):
+        # Default to 0 if conversion fails
+        result['conversion_happened'] = 0
+    
+    # Handle time_to_conversion_seconds - should be a float
+    try:
+        result['time_to_conversion_seconds'] = float(result['time_to_conversion_seconds'])
+    except (ValueError, TypeError):
+        # Default to -1.0 if conversion fails
+        result['time_to_conversion_seconds'] = -1.0
+    
+    return result
+
 async def forward(self):
     """
     The forward function is called by the validator every time step.
-    It queries the network with real-time conversation features and scores miner predictions.
+    It queries the network with real-time conversation features and scores miner predictions
+    using external validation API.
 
     Args:
         self: The validator neuron object containing state (e.g., metagraph, dendrite, config).
@@ -67,12 +123,19 @@ async def forward(self):
         sample_size = getattr(self.config.neuron, 'sample_size', SAMPLE_SIZE)
         miner_uids = get_random_uids(self, k=sample_size)
 
+        # Generate unique test_pk for this round
+        test_pk = str(uuid.uuid4())
+        logger.info(f"Starting validation round with test_pk: {test_pk}")
+
         # Generate synthetic conversation features
         conversation = generate_conversation()
         features = validate_features(conversation)
         
         # Preprocess features to ensure integer fields are properly converted
         features = preprocess_features(features)
+        
+        # Add test_pk to features for tracking
+        features['test_pk'] = test_pk
         
         # Store the features for ground truth generation
         self.conversation_history = getattr(self, 'conversation_history', {})
@@ -130,10 +193,25 @@ async def forward(self):
                 response.set_prediction(response.prediction)
 
         # Log responses for monitoring
-        logger.info(f"Received responses: {[r.prediction for r in responses if r.prediction is not None]}")
+        logger.info(f"Received {len(responses)} responses for test_pk: {test_pk}")
+        for i, r in enumerate(responses):
+            logger.debug(f"Miner {miner_uids[i]} prediction: {r.prediction}")
 
-        # Generate ground truth based on conversation features
-        ground_truth = generate_ground_truth(features)
+        # Get external validation result
+        validation_result = await get_external_validation(test_pk)
+        
+        if validation_result is None:
+            logger.error(f"Failed to get validation result for test_pk: {test_pk}")
+            # Fallback to synthetic ground truth
+            ground_truth = generate_ground_truth(features)
+            logger.warning("Using synthetic ground truth as fallback")
+        else:
+            # Convert external validation to ground truth format
+            ground_truth = {
+                'conversion_happened': 1 if validation_result.labels else 0,
+                'time_to_conversion_seconds': 60.0 if validation_result.labels else -1.0  # Default time
+            }
+            logger.info(f"External validation result: conversion_happened={ground_truth['conversion_happened']}")
         
         # Score responses using the Incentive Mechanism
         score_validator = Validator()
@@ -160,7 +238,7 @@ async def forward(self):
         rewards = np.array(rewards, dtype=np.float32)
 
         # Log scored responses
-        logger.info(f"Scored responses: {rewards}")
+        logger.info(f"Scored responses for test_pk {test_pk}: {rewards}")
 
         # Convert to torch tensor for update_scores
         try:
@@ -174,21 +252,52 @@ async def forward(self):
                 self.update_scores(rewards, miner_uids)
             except Exception as e2:
                 logger.error(f"Error in fallback update: {e2}. Scores not updated at all.")
-    except Exception as e:
-        logger.error(f"Error in forward function: {e}")
-        # Don't re-raise to ensure the validator continues running
 
-def generate_ground_truth(features: ConversationFeatures) -> PredictionOutput:
+    except Exception as e:
+        logger.error(f"Error in forward pass: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+
+async def get_external_validation(test_pk: str) -> Optional[ValidationResult]:
+    """
+    Get external validation result for a test_pk.
+    
+    Args:
+        test_pk: Test primary key to validate
+        
+    Returns:
+        ValidationResult: The validation result, or None if failed
+    """
+    try:
+        client = get_default_validation_client()
+        result = await client.get_validation_result(test_pk)
+        logger.info(f"External validation successful for test_pk {test_pk}: labels={result.labels}")
+        return result
+    except ValidationError as e:
+        logger.error(f"Validation API error for test_pk {test_pk}: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error in external validation for test_pk {test_pk}: {e}")
+        return None
+
+def generate_ground_truth(features: Dict) -> Dict:
     """
     Generate ground truth based on conversation features.
     This implements a deterministic rule-based approach that miners can learn.
     
     Args:
-        features (ConversationFeatures): Conversation features
+        features: Conversation features
         
     Returns:
-        PredictionOutput: Ground truth with conversion_happened and time_to_conversion_seconds
+        Dict: Ground truth with conversion_happened and time_to_conversion_seconds
     """
+    # Constants for ground truth rules
+    ENTITY_THRESHOLD = 4
+    MESSAGE_RATIO_THRESHOLD = 1.2
+    MIN_CONVERSATION_DURATION = 90.0
+    TIME_SCALE_FACTOR = 0.7
+    MIN_CONVERSION_TIME = 30.0
+    
     # Determine if conversion happened based on key features
     has_target = features.get('has_target_entity', 0) == 1
     entities_count = features.get('entities_collected_count', 0)
@@ -263,45 +372,3 @@ def validate_prediction(prediction: Dict) -> bool:
     except (ValueError, TypeError):
         # Failed to convert types
         return False
-
-def preprocess_prediction(prediction: Dict) -> Dict:
-    """
-    Preprocess prediction to ensure fields are properly converted to their correct types.
-    
-    Args:
-        prediction (Dict): Dictionary with prediction data
-        
-    Returns:
-        Dict: Prediction with fields converted to correct types
-    """
-    if not prediction:
-        # Return a valid default prediction structure when prediction is empty
-        return {
-            'conversion_happened': 0,
-            'time_to_conversion_seconds': -1.0
-        }
-        
-    result = prediction.copy()
-    
-    # Ensure required fields exist
-    if 'conversion_happened' not in result:
-        result['conversion_happened'] = 0
-    
-    if 'time_to_conversion_seconds' not in result:
-        result['time_to_conversion_seconds'] = -1.0
-    
-    # Handle conversion_happened - should be an integer
-    try:
-        result['conversion_happened'] = int(result['conversion_happened'])
-    except (ValueError, TypeError):
-        # Default to 0 if conversion fails
-        result['conversion_happened'] = 0
-    
-    # Handle time_to_conversion_seconds - should be a float
-    try:
-        result['time_to_conversion_seconds'] = float(result['time_to_conversion_seconds'])
-    except (ValueError, TypeError):
-        # Default to -1.0 if conversion fails
-        result['time_to_conversion_seconds'] = -1.0
-    
-    return result

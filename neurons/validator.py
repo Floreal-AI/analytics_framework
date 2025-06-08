@@ -5,9 +5,11 @@
 # [Existing license text remains unchanged]
 
 import time
+import os
 import bittensor as bt
 from conversion_subnet.base.validator import BaseValidatorNeuron
 from conversion_subnet.validator.forward import forward
+from conversion_subnet.validator.validation_client import configure_default_validation_client
 
 class Validator(BaseValidatorNeuron):
     """
@@ -30,6 +32,31 @@ class Validator(BaseValidatorNeuron):
         
         # Initialize scores tracker
         self.scores_history = {}
+        
+        # Configure validation API client
+        self._configure_validation_client()
+
+    def _configure_validation_client(self):
+        """Configure the validation API client with environment variables."""
+        try:
+            # Get API configuration from environment
+            api_base_url = os.getenv(
+                'VALIDATION_API_BASE_URL', 
+                'https://uqhnd2kvgi.execute-api.eu-west-3.amazonaws.com/v1'
+            )
+            api_key = os.getenv(
+                'VALIDATION_API_KEY', 
+                '45b916d2-2ec8-46dc-9035-0b719b33fedf-a655aad5c474b9564d8031991c3817d98619533228d666c12e29b374e691e286'
+            )
+            timeout = float(os.getenv('VALIDATION_API_TIMEOUT', '30.0'))
+            
+            # Configure the default client
+            configure_default_validation_client(api_base_url, api_key, timeout)
+            bt.logging.info("Validation API client configured successfully")
+            
+        except Exception as e:
+            bt.logging.error(f"Failed to configure validation API client: {e}")
+            bt.logging.warning("Validator will fall back to synthetic ground truth")
 
     async def forward(self):
         """

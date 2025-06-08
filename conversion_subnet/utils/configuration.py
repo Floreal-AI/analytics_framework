@@ -8,17 +8,44 @@ loading from environment variables, YAML files, and defaults.
 
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
+import warnings
 
 import os
 import yaml
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, model_validator
 
-# Try to import pydantic, but don't fail if not available
+# Import BaseSettings with proper warnings
 try:
-    from pydantic import BaseSettings
+    from pydantic_settings import BaseSettings
+    PYDANTIC_SETTINGS_AVAILABLE = True
 except ImportError:
-    # Fallback for older pydantic versions
-    from pydantic import BaseModel as BaseSettings
+    warnings.warn(
+        "pydantic-settings not installed. Using BaseModel instead of BaseSettings. "
+        "Environment variable configuration will not work. "
+        "Install with: pip install pydantic-settings",
+        UserWarning,
+        stacklevel=2
+    )
+    try:
+        from pydantic import BaseSettings
+        PYDANTIC_SETTINGS_AVAILABLE = True
+        warnings.warn(
+            "Using deprecated BaseSettings from pydantic. "
+            "Consider installing pydantic-settings for better support.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+    except ImportError:
+        # Final fallback with clear warning
+        warnings.warn(
+            "BaseSettings not available. Configuration will use BaseModel only. "
+            "Environment variables will NOT be loaded automatically. "
+            "This is a degraded mode of operation.",
+            UserWarning,
+            stacklevel=2
+        )
+        BaseSettings = BaseModel
+        PYDANTIC_SETTINGS_AVAILABLE = False
 
 from conversion_subnet.constants import (
     TIMEOUT_SEC, SAMPLE_SIZE, MLP_LAYER_SIZES, EMA_BETA
@@ -104,14 +131,21 @@ class ConversionSubnetConfig(BaseSettings):
     config_path: Path = Field(default=Path.home() / ".bittensor" / "config.yml",
                              description="Path to config file")
     
-    class Config:
-        """Pydantic configuration."""
-        env_prefix = "CONVERSION_"
-        env_nested_delimiter = "__"
+    # Pydantic V2 configuration
+    model_config = {
+        "env_prefix": "CONVERSION_",
+        "env_nested_delimiter": "__",
+        "extra": "allow",  # Allow extra fields for backward compatibility
+    }
     
-    @root_validator(pre=True)
+    @model_validator(mode='before')
+    @classmethod
     def load_yaml_config(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         """Load configuration from YAML file if it exists."""
+        # Handle both dict and object inputs
+        if not isinstance(values, dict):
+            return values
+            
         config_path = values.get('config_path')
         if config_path is None:
             config_path = os.getenv(
@@ -141,7 +175,20 @@ def load_config(config_path: Optional[Union[str, Path]] = None) -> ConversionSub
                      
     Returns:
         ConversionSubnetConfig: Loaded configuration
+        
+    Warnings:
+        Issues warnings if pydantic-settings is not available and environment
+        variable loading is disabled.
     """
+    if not PYDANTIC_SETTINGS_AVAILABLE:
+        warnings.warn(
+            "Configuration created without pydantic-settings support. "
+            "Environment variables with CONVERSION_ prefix will be ignored. "
+            "Install pydantic-settings for full functionality.",
+            UserWarning,
+            stacklevel=2
+        )
+    
     if config_path:
         return ConversionSubnetConfig(config_path=Path(config_path))
     return ConversionSubnetConfig()

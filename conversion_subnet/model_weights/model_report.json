@@ -1,0 +1,222 @@
+{
+  "model_type": "XGBClassifier",
+  "training_samples": 80,
+  "test_samples": 20,
+  "num_features": 42,
+  "train_metrics": {
+    "accuracy": 0.9625,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "roc_auc": 0.5
+  },
+  "test_metrics": {
+    "accuracy": 0.95,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "roc_auc": 0.5
+  },
+  "cross_validation": {
+    "cv_accuracy_mean": 0.9625,
+    "cv_accuracy_std": 0.03061862178478973,
+    "cv_precision_mean": 0.0,
+    "cv_precision_std": 0.0,
+    "cv_recall_mean": 0.0,
+    "cv_recall_std": 0.0,
+    "cv_f1_mean": 0.0,
+    "cv_f1_std": 0.0,
+    "cv_roc_auc_mean": NaN,
+    "cv_roc_auc_std": NaN
+  },
+  "confusion_matrix_train": [
+    [
+      77,
+      0
+    ],
+    [
+      3,
+      0
+    ]
+  ],
+  "confusion_matrix_test": [
+    [
+      19,
+      0
+    ],
+    [
+      1,
+      0
+    ]
+  ],
+  "feature_importance": [
+    [
+      "isWeekend",
+      0.0
+    ],
+    [
+      "dayOfWeek",
+      0.0
+    ],
+    [
+      "hourOfDay",
+      0.0
+    ],
+    [
+      "messageRatio",
+      0.0
+    ],
+    [
+      "totalMessages",
+      0.0
+    ],
+    [
+      "responseGapMax",
+      0.0
+    ],
+    [
+      "hasTargetEntity",
+      0.0
+    ],
+    [
+      "isBusinessHours",
+      0.0
+    ],
+    [
+      "repeatedQuestions",
+      0.0
+    ],
+    [
+      "messagesPerMinute",
+      0.0
+    ],
+    [
+      "questionCountUser",
+      0.0
+    ],
+    [
+      "userMessagesCount",
+      0.0
+    ],
+    [
+      "agentMessagesCount",
+      0.0
+    ],
+    [
+      "questionCountAgent",
+      0.0
+    ],
+    [
+      "responseTimeStddev",
+      0.0
+    ],
+    [
+      "avgEntityConfidence",
+      0.0
+    ],
+    [
+      "minEntityConfidence",
+      0.0
+    ],
+    [
+      "totalCharsFromUser",
+      0.0
+    ],
+    [
+      "entityCollectionRate",
+      0.0
+    ],
+    [
+      "totalCharsFromAgent",
+      0.0
+    ],
+    [
+      "avgMessageLengthUser",
+      0.0
+    ],
+    [
+      "maxMessageLengthUser",
+      0.0
+    ],
+    [
+      "minMessageLengthUser",
+      0.0
+    ],
+    [
+      "avgMessageLengthAgent",
+      0.0
+    ],
+    [
+      "entitiesCollectedCount",
+      0.0
+    ],
+    [
+      "maxMessageLengthAgent",
+      0.0
+    ],
+    [
+      "messageAlternationRate",
+      0.0
+    ],
+    [
+      "minMessageLengthAgent",
+      0.0
+    ],
+    [
+      "sequentialUserMessages",
+      0.0
+    ],
+    [
+      "avgResponseTimeSeconds",
+      0.0
+    ],
+    [
+      "maxResponseTimeSeconds",
+      0.0
+    ],
+    [
+      "minResponseTimeSeconds",
+      0.0
+    ],
+    [
+      "sequentialAgentMessages",
+      0.0
+    ],
+    [
+      "questionsPerUserMessage",
+      0.0
+    ],
+    [
+      "timeToConversionMinutes",
+      0.0
+    ],
+    [
+      "timeToConversionSeconds",
+      0.0
+    ],
+    [
+      "questionsPerAgentMessage",
+      0.0
+    ],
+    [
+      "conversationDurationMinutes",
+      0.0
+    ],
+    [
+      "conversationDurationSeconds",
+      0.0
+    ],
+    [
+      "avgUserResponseTimeSeconds",
+      0.0
+    ],
+    [
+      "timeToFirstResponseSeconds",
+      0.0
+    ],
+    [
+      "avgAgentResponseTimeSeconds",
+      0.0
+    ]
+  ]
+}
