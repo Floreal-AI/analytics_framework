@@ -55,17 +55,18 @@ try:
     from importlib.metadata import version, PackageNotFoundError  # py>=3.8
 
     __version__: str = version(__name__)  # type: ignore[arg-type]
+    
+    # Calculate spec version from version string
+    version_split = __version__.split(".")
+    __spec_version__ = (
+        (1000 * int(version_split[0]))
+        + (10 * int(version_split[1]))
+        + (1 * int(version_split[2]))
+    )
 
 except PackageNotFoundError:  # running from source‑tree or editable mode
-    __version__ = "0.1.0"
-
-# Calculate spec version from version string
-version_split = __version__.split(".")
-__spec_version__ = (
-    (1000 * int(version_split[0]))
-    + (10 * int(version_split[1]))
-    + (1 * int(version_split[2]))
-)
+    # Import from our version file when running from source
+    from ._version import __version__, __spec_version__
 
 # ------------------------------------------------------------------------- #
 # Public re‑exports (optional, keep the surface small)

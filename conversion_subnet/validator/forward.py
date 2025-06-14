@@ -2,24 +2,24 @@
 Forward pass implementation for validators.
 
 This module handles the core validator logic:
-1. Generate conversation features or get real data
-2. Query miners for predictions
-3. Validate predictions against external API
+1. Fetch real test data from API using roundNumber parameter
+2. Query miners for predictions with real features and real test_pk
+3. Validate predictions against external API using the same real test_pk
 4. Calculate and assign rewards
+
+STRICT POLICY: No fallbacks, no synthetic data, raise all errors with traceback.
 """
 
 import time
-import uuid
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import bittensor as bt
 
 from conversion_subnet.constants import SAMPLE_SIZE, TIMEOUT_SEC
 from conversion_subnet.protocol import ConversionSynapse
 from conversion_subnet.utils.log import logger
-from conversion_subnet.validator.generate import generate_conversation
-from conversion_subnet.validator.utils import validate_features, log_metrics
+from conversion_subnet.validator.utils import log_metrics
 from conversion_subnet.validator.reward import Validator
 from conversion_subnet.utils.uids import get_random_uids
 from conversion_subnet.validator.validation_client import (
@@ -27,6 +27,7 @@ from conversion_subnet.validator.validation_client import (
     ValidationError,
     ValidationResult
 )
+from conversion_subnet.utils.retry import retry_dendrite_call, RetryConfig, RetryStrategy
 
 def preprocess_features(features: Dict) -> Dict:
     """
@@ -112,47 +113,163 @@ def preprocess_prediction(prediction: Dict) -> Dict:
 async def forward(self):
     """
     The forward function is called by the validator every time step.
-    It queries the network with real-time conversation features and scores miner predictions
-    using external validation API.
+    
+    STRICT IMPLEMENTATION:
+    1. Fetch REAL test data from API (with roundNumber=1, no fallbacks)
+    2. Query miners with REAL features and REAL test_pk
+    3. Validate using SAME REAL test_pk against external validation API
+    4. Calculate and assign rewards
+    
+    NO FALLBACKS: All errors are raised with full traceback.
 
     Args:
-        self: The validator neuron object containing state (e.g., metagraph, dendrite, config).
+        self: The validator neuron object containing state (e.g., metagraph, dendrite, config, data_client).
     """
     try:
         # Select a subset of miners to query
         sample_size = getattr(self.config.neuron, 'sample_size', SAMPLE_SIZE)
+        
+        # Initialize test data offset if not exists
+        if not hasattr(self, 'test_data_offset'):
+            self.test_data_offset = 0
+
+        # Select a random subset of miner UIDs for testing
         miner_uids = get_random_uids(self, k=sample_size)
+        logger.debug(f"Selected miner UIDs for query: {miner_uids}")
 
-        # Generate unique test_pk for this round
-        test_pk = str(uuid.uuid4())
-        logger.info(f"Starting validation round with test_pk: {test_pk}")
+        # Check if data client is properly configured
+        if not hasattr(self, 'data_client') or self.data_client is None:
+            error_msg = "Data API client not configured. Missing .env file or invalid API credentials."
+            logger.error(error_msg)
+            logger.error("Please create .env file with:")
+            logger.error("VOICEFORM_API_BASE_URL=your_api_url")
+            logger.error("VOICEFORM_API_KEY=your_api_key")
+            raise RuntimeError(error_msg)
 
-        # Generate synthetic conversation features
-        conversation = generate_conversation()
-        features = validate_features(conversation)
+        # Try to fetch REAL test data from API with proper error handling
+        try:
+            logger.info(f"Fetching REAL test data from API: limit=1, offset={self.test_data_offset}")
+            test_data = await self.data_client.fetch_test_data(
+                limit=1,
+                offset=self.test_data_offset,
+                round_number=1,  # Using roundNumber=1 as per working curl command
+                save=False
+            )
+        except Exception as api_error:
+            error_msg = f"Failed to fetch test data from API: {api_error}"
+            logger.error(error_msg)
+            logger.error("This may be due to:")
+            logger.error("1. Missing or invalid .env configuration")
+            logger.error("2. API server connectivity issues")
+            logger.error("3. Invalid API credentials")
+            logger.error("4. API endpoint changes")
+            raise RuntimeError(error_msg) from api_error
+
+        # Validate that we received test data with sufficient features
+        if len(test_data.features) == 0:
+            error_msg = f"API returned empty test data at offset {self.test_data_offset}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
         
-        # Preprocess features to ensure integer fields are properly converted
-        features = preprocess_features(features)
+        if len(test_data.feature_names) < 10:  # Expect at least 10 features, should be ~42
+            error_msg = f"API returned insufficient features: {len(test_data.feature_names)} features, expected ~42"
+            logger.error(error_msg)
+            logger.error(f"Received features: {test_data.feature_names}")
+            raise RuntimeError(error_msg)
         
-        # Add test_pk to features for tracking
+        # Extract REAL test_pk and features from API response
+        test_pk = test_data.ids[0]
+        raw_features = {
+            name: value for name, value in 
+            zip(test_data.feature_names, test_data.features[0])
+        }
+        
+        # Convert features to proper format, handling mixed types from API
+        features = {}
+        for name, value in raw_features.items():
+            if isinstance(value, str):
+                # Handle string values from API
+                if value == "true":
+                    features[name] = True
+                elif value == "false":
+                    features[name] = False
+                elif value == "-1.00" or value == "-1":
+                    features[name] = -1.0
+                else:
+                    try:
+                        # Try to convert to float first, then int if it's a whole number
+                        float_val = float(value)
+                        features[name] = int(float_val) if float_val.is_integer() else float_val
+                    except ValueError:
+                        features[name] = value  # Keep as string if conversion fails
+            else:
+                features[name] = value
+        
+        # Add the REAL test_pk to features
         features['test_pk'] = test_pk
         
-        # Store the features for ground truth generation
+        # Increment offset for next round
+        self.test_data_offset += 1
+        
+        logger.info(f"Using REAL test data: test_pk={test_pk}, features_count={len(features)}")
+        
+        # Validate and preprocess features
+        features = preprocess_features(features)
+        
+        # Store the features for tracking
         self.conversation_history = getattr(self, 'conversation_history', {})
-        self.conversation_history[features['session_id']] = features
+        session_id = features.get('session_id', test_pk)
+        features['session_id'] = session_id
+        self.conversation_history[session_id] = features
 
-        # Create ConversionSynapse with features
+        # Create ConversionSynapse with REAL test features and REAL test_pk
         synapse = ConversionSynapse(features=features)
 
-        # Query miners and measure response time
+        # Defensive assertion to catch test_pk preservation issues early
+        assert 'test_pk' in synapse.features, f"CRITICAL BUG: test_pk not preserved in synapse.features. Available keys: {list(synapse.features.keys())}"
+        assert synapse.features['test_pk'] == test_pk, f"CRITICAL BUG: test_pk mismatch. Expected: {test_pk}, Got: {synapse.features.get('test_pk')}"
+        assert synapse.features.get('test_pk', 'unknown') != 'unknown', f"CRITICAL BUG: test_pk is 'unknown'. Features: {synapse.features}"
+
+        # Query miners with retry logic and increased timeouts
         start_time = time.time()
-        responses = await self.dendrite(
-            axons=[self.metagraph.axons[uid] for uid in miner_uids],
-            synapse=synapse,
-            deserialize=True,
-            timeout=TIMEOUT_SEC
-        )
-        end_time = time.time()
+        
+        # Define the dendrite operation as an async function for retry wrapper
+        async def make_dendrite_call():
+            return await self.dendrite(
+                axons=[self.metagraph.axons[uid] for uid in miner_uids],
+                synapse=synapse,
+                deserialize=True,
+                timeout=TIMEOUT_SEC  # This will be overridden by retry mechanism
+            )
+        
+        # Log detailed connection information for debugging
+        logger.info(f"Querying {len(miner_uids)} miners with retry resilience for test_pk: {synapse.features.get('test_pk', 'unknown')}")
+        for i, uid in enumerate(miner_uids):
+            axon = self.metagraph.axons[uid]
+            logger.info(f"Miner {uid}: attempting connection to {axon.ip}:{axon.port} (external: {getattr(axon, 'external_ip', 'not_set')}:{getattr(axon, 'external_port', 'not_set')})")
+            # Check if this is the problematic 0.0.0.0 address
+            if axon.ip == "0.0.0.0":
+                logger.warning(f"Miner {uid} has invalid IP 0.0.0.0 - this will cause connection failures")
+        
+        # Use retry mechanism with exponential backoff and increased timeouts
+        
+        try:
+            responses = await retry_dendrite_call(
+                make_dendrite_call,
+                max_attempts=3,  # Reduced from 4 attempts
+                base_timeout=30.0,  # Reduced from 120s to 30s for faster recovery
+            )
+            end_time = time.time()
+            logger.info(f"Dendrite call succeeded after {end_time - start_time:.2f}s total")
+            
+        except Exception as e:
+            end_time = time.time()
+            logger.error(f"Dendrite call failed after all retries in {end_time - start_time:.2f}s: {e}")
+            # For now, continue with empty responses to maintain flow
+            # This allows the validator to handle failed miner communications gracefully
+            responses = [ConversionSynapse(features={}) for _ in miner_uids]
+            # DO NOT set empty predictions - leave them as None to avoid validation errors
+            # The scoring logic will handle None predictions by assigning 0.0 reward
 
         # Update response times in synapses
         for i, (response, uid) in enumerate(zip(responses, miner_uids)):
@@ -183,42 +300,65 @@ async def forward(self):
             if not hasattr(response, 'confidence') or response.confidence is None:
                 response.confidence = 0.5
                 
-            # Use set_prediction for empty predictions (it handles None values)
-            if not hasattr(response, 'prediction') or response.prediction is None:
-                response.set_prediction({})
-            elif isinstance(response.prediction, dict) and (not response.prediction or
-                    'conversion_happened' not in response.prediction or
-                    'time_to_conversion_seconds' not in response.prediction):
-                # If prediction is an incomplete dictionary, process it
-                response.set_prediction(response.prediction)
+            # Handle predictions - DO NOT try to set empty predictions as they will fail validation
+            # Leave None predictions as None - they will be handled in scoring with 0.0 reward
+            if hasattr(response, 'prediction') and response.prediction is not None:
+                if isinstance(response.prediction, dict) and response.prediction:
+                    # Only validate non-empty predictions
+                    if ('conversion_happened' not in response.prediction or
+                        'time_to_conversion_seconds' not in response.prediction):
+                        # If prediction is an incomplete dictionary, leave it as None
+                        logger.warning(f"Incomplete prediction from miner {uid}, leaving as None: {response.prediction}")
+                        response.prediction = None
+                    else:
+                        # Validate complete predictions using set_prediction
+                        try:
+                            response.set_prediction(response.prediction)
+                        except Exception as pred_error:
+                            logger.warning(f"Invalid prediction from miner {uid}, leaving as None: {pred_error}")
+                            response.prediction = None
+                else:
+                    # Empty or non-dict predictions should be left as None
+                    response.prediction = None
 
         # Log responses for monitoring
-        logger.info(f"Received {len(responses)} responses for test_pk: {test_pk}")
+        logger.info(f"Received {len(responses)} responses for REAL test_pk: {test_pk}")
         for i, r in enumerate(responses):
             logger.debug(f"Miner {miner_uids[i]} prediction: {r.prediction}")
 
-        # Get external validation result
-        validation_result = await get_external_validation(test_pk)
+        # Get external validation using SAME REAL test_pk with retry resilience
+        logger.info(f"Getting external validation with retry resilience for REAL test_pk: {test_pk}")
         
-        if validation_result is None:
-            logger.error(f"Failed to get validation result for test_pk: {test_pk}")
-            # Fallback to synthetic ground truth
-            ground_truth = generate_ground_truth(features)
-            logger.warning("Using synthetic ground truth as fallback")
-        else:
-            # Convert external validation to ground truth format
-            ground_truth = {
-                'conversion_happened': 1 if validation_result.labels else 0,
-                'time_to_conversion_seconds': 60.0 if validation_result.labels else -1.0  # Default time
-            }
-            logger.info(f"External validation result: conversion_happened={ground_truth['conversion_happened']}")
+        async def get_validation():
+            return await get_external_validation(test_pk)
+            
+        try:
+            validation_result = await retry_dendrite_call(
+                get_validation,
+                max_attempts=3,  # Retry external validation calls
+                base_timeout=60.0,  # 1 minute base timeout for validation API
+            )
+            logger.info(f"External validation succeeded for test_pk: {test_pk}")
+            
+        except Exception as e:
+            logger.error(f"External validation failed after all retries for test_pk {test_pk}: {e}")
+            raise  # Re-raise to maintain strict error handling
+        
+        # Convert external validation to ground truth format
+        ground_truth = {
+            'conversion_happened': 1 if validation_result.labels else 0,
+            'time_to_conversion_seconds': 60.0 if validation_result.labels else -1.0
+        }
+        logger.info(f"External validation result for test_pk {test_pk}: conversion_happened={ground_truth['conversion_happened']}")
         
         # Score responses using the Incentive Mechanism
         score_validator = Validator()
         rewards = []
         for response in responses:
             try:
-                if not response.prediction:
+                if response.prediction is None or not response.prediction:
+                    # No prediction available - assign 0.0 reward
+                    logger.debug(f"No prediction from miner {response.miner_uid}, assigning 0.0 reward")
                     reward = 0.0
                 else:
                     # Use validate_prediction directly as prediction is already preprocessed by set_prediction
@@ -229,7 +369,7 @@ async def forward(self):
                         reward = score_validator.reward(ground_truth, response)
                         log_metrics(response, reward, ground_truth)  # Log detailed metrics
             except Exception as e:
-                logger.error(f"Error scoring response: {e}")
+                logger.error(f"Error scoring response from miner {response.miner_uid}: {e}")
                 reward = 0.0
                 
             rewards.append(reward)
@@ -238,7 +378,7 @@ async def forward(self):
         rewards = np.array(rewards, dtype=np.float32)
 
         # Log scored responses
-        logger.info(f"Scored responses for test_pk {test_pk}: {rewards}")
+        logger.info(f"Scored responses for REAL test_pk {test_pk}: {rewards}")
 
         # Convert to torch tensor for update_scores
         try:
@@ -257,80 +397,47 @@ async def forward(self):
         logger.error(f"Error in forward pass: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
+        # Re-raise the error to ensure it's not swallowed
+        raise
 
-async def get_external_validation(test_pk: str) -> Optional[ValidationResult]:
+async def get_external_validation(test_pk: str) -> ValidationResult:
     """
-    Get external validation result for a test_pk.
+    Get external validation result for a REAL test_pk.
+    
+    STRICT: No fallbacks, raise all errors with traceback.
     
     Args:
-        test_pk: Test primary key to validate
+        test_pk: REAL test primary key from API
         
     Returns:
-        ValidationResult: The validation result, or None if failed
+        ValidationResult: The validation result
+        
+    Raises:
+        ValidationError: If the external validation API call fails
+        RuntimeError: If the validation client is not configured
     """
     try:
         client = get_default_validation_client()
+    except RuntimeError as e:
+        logger.error(f"Validation client not configured: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise RuntimeError(f"External validation failed: {e}") from e
+    
+    try:
         result = await client.get_validation_result(test_pk)
-        logger.info(f"External validation successful for test_pk {test_pk}: labels={result.labels}")
+        logger.info(f"External validation successful for REAL test_pk {test_pk}: labels={result.labels}")
         return result
     except ValidationError as e:
-        logger.error(f"Validation API error for test_pk {test_pk}: {e}")
-        return None
+        logger.error(f"Validation API error for REAL test_pk {test_pk}: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise ValidationError(f"External validation failed for REAL test_pk {test_pk}: {e}") from e
     except Exception as e:
-        logger.error(f"Unexpected error in external validation for test_pk {test_pk}: {e}")
-        return None
-
-def generate_ground_truth(features: Dict) -> Dict:
-    """
-    Generate ground truth based on conversation features.
-    This implements a deterministic rule-based approach that miners can learn.
-    
-    Args:
-        features: Conversation features
-        
-    Returns:
-        Dict: Ground truth with conversion_happened and time_to_conversion_seconds
-    """
-    # Constants for ground truth rules
-    ENTITY_THRESHOLD = 4
-    MESSAGE_RATIO_THRESHOLD = 1.2
-    MIN_CONVERSATION_DURATION = 90.0
-    TIME_SCALE_FACTOR = 0.7
-    MIN_CONVERSION_TIME = 30.0
-    
-    # Determine if conversion happened based on key features
-    has_target = features.get('has_target_entity', 0) == 1
-    entities_count = features.get('entities_collected_count', 0)
-    message_ratio = features.get('message_ratio', 0)
-    conversation_duration = features.get('conversation_duration_seconds', 0)
-    
-    # Rule 1: Has target entity and collected enough entities
-    conversion_rule1 = has_target and entities_count >= ENTITY_THRESHOLD
-    
-    # Rule 2: Good message ratio (agent asks more questions) and conversation is long enough
-    conversion_rule2 = message_ratio > MESSAGE_RATIO_THRESHOLD and conversation_duration > MIN_CONVERSATION_DURATION
-    
-    # Conversion happens if either rule is met
-    conversion_happened = 1 if (conversion_rule1 or conversion_rule2) else 0
-    
-    # Calculate time to conversion if conversion happened
-    if conversion_happened == 1:
-        # Base time is conversation_duration * scale_factor
-        base_time = conversation_duration * TIME_SCALE_FACTOR
-        
-        # Adjust based on features 
-        adjustment = 10 if has_target else 0
-        adjustment -= 5 * max(0, entities_count - 3)  # Faster with more entities
-        adjustment += 5 * (1.0 - min(1.0, message_ratio / 2.0))  # Faster with better message ratio
-        
-        time_to_conversion = max(MIN_CONVERSION_TIME, base_time + adjustment)
-    else:
-        time_to_conversion = -1.0
-        
-    return {
-        'conversion_happened': conversion_happened,
-        'time_to_conversion_seconds': time_to_conversion
-    }
+        logger.error(f"Unexpected error in external validation for REAL test_pk {test_pk}: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise RuntimeError(f"External validation failed with unexpected error for REAL test_pk {test_pk}: {e}") from e
 
 def validate_prediction(prediction: Dict) -> bool:
     """

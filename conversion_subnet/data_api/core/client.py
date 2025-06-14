@@ -11,8 +11,8 @@ Following principles:
 
 import asyncio
 from typing import Dict, Any, Optional
-from urllib.parse import urljoin
 import aiohttp
+from urllib.parse import urljoin
 from loguru import logger
 from pathlib import Path
 import pandas as pd
@@ -61,11 +61,11 @@ class VoiceFormAPIClient:
     
     async def _make_request(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Make HTTP request to API.
+        Make HTTP GET request to API endpoint with proper URL construction and logging.
         
         Args:
-            endpoint: API endpoint path
-            params: Optional query parameters
+            endpoint: API endpoint path (e.g., '/bittensor/analytics/test-data')
+            params: Query parameters (optional)
             
         Returns:
             Dict[str, Any]: JSON response
@@ -73,30 +73,48 @@ class VoiceFormAPIClient:
         Raises:
             APIError: If request fails
         """
-        url = urljoin(self.config.base_url, endpoint)
+        # Use urllib.parse.urljoin for proper URL construction to avoid path duplication
+        # This handles trailing/leading slashes correctly and prevents double slashes
+        url = urljoin(self.config.base_url.rstrip('/') + '/', endpoint.lstrip('/'))
+        
+        # Log the URL construction process for debugging
+        logger.info(f"URL Construction: base_url='{self.config.base_url}' + endpoint='{endpoint}' = '{url}'")
+        
         headers = self._get_headers()
         session = await self._get_session()
         
-        logger.debug(f"Making request to {url}")
+        # Log the complete request details
+        logger.info(f"Making API request: {url}")
+        if params:
+            logger.debug(f"Request parameters: {params}")
         
         try:
             async with session.get(url, headers=headers, params=params) as response:
                 response_text = await response.text()
                 
+                # Log response status
+                logger.info(f"API Response: {response.status} for {url}")
+                
                 if response.status != 200:
+                    logger.error(f"API Error: HTTP {response.status} for {url}: {response_text}")
                     raise APIError(
                         f"HTTP {response.status}: {response_text}", 
                         status_code=response.status
                     )
                 
                 try:
-                    return await response.json()
+                    response_data = await response.json()
+                    logger.debug(f"API Response successful for {url}: {len(response_text)} chars")
+                    return response_data
                 except Exception as e:
+                    logger.error(f"JSON parsing failed for {url}: {e}")
                     raise APIError(f"Invalid JSON response: {e}")
                     
         except aiohttp.ClientError as e:
+            logger.error(f"Network error for {url}: {e}")
             raise APIError(f"Network error: {e}")
         except asyncio.TimeoutError:
+            logger.error(f"Request timeout for {url} after {self.config.timeout_seconds}s")
             raise APIError(f"Request timeout after {self.config.timeout_seconds}s")
     
     def _parse_training_response(self, data: Dict[str, Any]) -> TrainingData:
@@ -228,7 +246,7 @@ class VoiceFormAPIClient:
         
         logger.info(f"Fetching training data: limit={limit}, offset={offset}, round={round_number}")
         
-        raw_data = await self._make_request('/v1/bittensor/analytics/train-data', params)
+        raw_data = await self._make_request('/bittensor/analytics/train-data', params)
         training_data = self._parse_training_response(raw_data)
         
         # Save as CSV if requested
@@ -268,6 +286,7 @@ class VoiceFormAPIClient:
         self,
         limit: int = 100,
         offset: int = 0,
+        round_number: int = 1,
         save: bool = False,
         csv_filename: str = "test_data.csv"
     ) -> TestData:
@@ -277,6 +296,7 @@ class VoiceFormAPIClient:
         Args:
             limit: Number of records to fetch
             offset: Pagination offset
+            round_number: Round number for test data (required by API)
             save: Whether to save data as CSV (default: False)
             csv_filename: Name of CSV file to save (default: "test_data.csv")
             
@@ -290,15 +310,17 @@ class VoiceFormAPIClient:
         # Validate parameters
         assert limit > 0, f"Limit must be positive, got {limit}"
         assert offset >= 0, f"Offset must be non-negative, got {offset}"
+        assert round_number > 0, f"Round number must be positive, got {round_number}"
         
         params = {
             'limit': limit,
-            'offset': offset
+            'offset': offset,
+            'roundNumber': round_number
         }
         
-        logger.info(f"Fetching test data: limit={limit}, offset={offset}")
+        logger.info(f"Fetching test data: limit={limit}, offset={offset}, round={round_number}")
         
-        raw_data = await self._make_request('/v1/bittensor/analytics/test-data', params)
+        raw_data = await self._make_request('/bittensor/analytics/test-data', params)
         test_data = self._parse_test_response(raw_data)
         
         # Save as CSV if requested
@@ -366,7 +388,7 @@ class VoiceFormAPIClient:
         
         # Execute both requests concurrently
         train_task = self.fetch_training_data(train_limit, train_offset, round_number, save_training, train_csv_filename)
-        test_task = self.fetch_test_data(test_limit, test_offset, save_test, test_csv_filename)
+        test_task = self.fetch_test_data(test_limit, test_offset, round_number, save_test, test_csv_filename)
         
         training_data, test_data = await asyncio.gather(train_task, test_task)
         

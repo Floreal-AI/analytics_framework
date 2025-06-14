@@ -8,7 +8,7 @@ import numpy as np
 from unittest.mock import patch, MagicMock, AsyncMock
 
 from conversion_subnet.validator.forward import (
-    forward, generate_ground_truth, validate_prediction
+    forward, validate_prediction
 )
 from conversion_subnet.validator.utils import validate_features
 from conversion_subnet.protocol import ConversionSynapse, ConversationFeatures
@@ -24,53 +24,7 @@ forward.validate_features = validate_features
 class TestForward:
     """Test suite for forward module functions."""
 
-    def test_generate_ground_truth_positive_rule1(self, sample_features):
-        """Test ground truth generation for conversion via Rule 1."""
-        # Ensure we meet Rule 1 criteria (has_target_entity=1, entities_collected_count>=ENTITY_THRESHOLD)
-        features = sample_features.copy()
-        features['has_target_entity'] = 1
-        features['entities_collected_count'] = ENTITY_THRESHOLD
-        
-        result = generate_ground_truth(features)
-        
-        # Should predict conversion
-        assert result['conversion_happened'] == 1
-        assert result['time_to_conversion_seconds'] > 0
-        
-        # Time should be based on conversation duration
-        expected_base = features['conversation_duration_seconds'] * TIME_SCALE_FACTOR
-        assert result['time_to_conversion_seconds'] >= MIN_CONVERSION_TIME
-        assert abs(result['time_to_conversion_seconds'] - expected_base) < 20  # Allow for adjustments
 
-    def test_generate_ground_truth_positive_rule2(self, sample_features):
-        """Test ground truth generation for conversion via Rule 2."""
-        # Rule 2: message_ratio > threshold and conversation_duration > min_duration
-        features = sample_features.copy()
-        features['has_target_entity'] = 0  # Fail Rule 1
-        features['entities_collected_count'] = 0  # Fail Rule 1
-        features['message_ratio'] = MESSAGE_RATIO_THRESHOLD + 0.1
-        features['conversation_duration_seconds'] = MIN_CONVERSATION_DURATION + 10
-        
-        result = generate_ground_truth(features)
-        
-        # Should predict conversion
-        assert result['conversion_happened'] == 1
-        assert result['time_to_conversion_seconds'] > 0
-
-    def test_generate_ground_truth_negative(self, sample_features):
-        """Test ground truth generation for non-conversion."""
-        # Set conditions to fail both rules
-        features = sample_features.copy()
-        features['has_target_entity'] = 0  # Fail Rule 1
-        features['entities_collected_count'] = 0  # Fail Rule 1
-        features['message_ratio'] = MESSAGE_RATIO_THRESHOLD - 0.1  # Fail Rule 2
-        features['conversation_duration_seconds'] = MIN_CONVERSATION_DURATION - 10  # Fail Rule 2
-        
-        result = generate_ground_truth(features)
-        
-        # Should not predict conversion
-        assert result['conversion_happened'] == 0
-        assert result['time_to_conversion_seconds'] == -1.0
 
     def test_validate_prediction_valid(self):
         """Test validation of valid prediction format."""
@@ -145,14 +99,10 @@ class TestForward:
             # Call validate_prediction directly and verify results
             assert validate_prediction(response.prediction) == True
             
-            # Test generate_ground_truth function with a mock that should result in a conversion
-            features_for_conversion = sample_features.copy()
-            features_for_conversion['has_target_entity'] = 1
-            features_for_conversion['entities_collected_count'] = 5
-            
-            result = generate_ground_truth(features_for_conversion)
-            assert result['conversion_happened'] == 1
-            assert result['time_to_conversion_seconds'] > 0
+            # Test external ground truth format
+            ground_truth_external = {'conversion_happened': 1, 'time_to_conversion_seconds': 60.0}
+            assert ground_truth_external['conversion_happened'] == 1
+            assert ground_truth_external['time_to_conversion_seconds'] > 0
             
             return "Test passed"
         

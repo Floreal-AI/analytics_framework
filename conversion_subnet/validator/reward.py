@@ -166,6 +166,7 @@ class Validator:
                timeout: float = TIMEOUT_SEC) -> float:
         """
         Compute reward for a miner's response based on prediction accuracy and response time.
+        NO FALLBACKS - raises errors if validation fails.
 
         Args:
             targets (PredictionOutput): Ground truth
@@ -174,91 +175,98 @@ class Validator:
 
         Returns:
             float: Reward score between 0 and 1
+            
+        Raises:
+            AssertionError: If validation fails
+            ValueError: If required data is missing or invalid
         """
-        try:
-            # Handle dict response (for backward compatibility or testing)
-            if isinstance(response, dict):
-                # Convert dict to ConversionSynapse
-                temp_synapse = ConversionSynapse(features={})
+        # Validate inputs
+        assert targets is not None, "Ground truth targets cannot be None"
+        assert response is not None, "Response cannot be None"
+        assert timeout > 0, f"Timeout must be positive, got {timeout}"
+        
+        # Validate ground truth format
+        assert isinstance(targets, dict), f"Targets must be dict, got {type(targets)}"
+        assert 'conversion_happened' in targets, "Targets must contain 'conversion_happened'"
+        assert 'time_to_conversion_seconds' in targets, "Targets must contain 'time_to_conversion_seconds'"
+        
+        # Handle dict response (for backward compatibility or testing) - but with strict validation
+        if isinstance(response, dict):
+            # Validate dict response format
+            if 'prediction' not in response:
+                raise ValueError("Dict response must contain 'prediction' field")
                 
-                # Handle prediction field
-                if 'prediction' in response:
-                    temp_synapse.set_prediction(response.get('prediction'))
-                
-                # Handle confidence field
-                if 'confidence' in response:
-                    temp_synapse.confidence = response.get('confidence')
-                else:
-                    temp_synapse.confidence = 0.5  # Default confidence
-                
-                # Handle response_time field
-                if 'response_time' in response:
-                    temp_synapse.response_time = response.get('response_time')
-                else:
-                    temp_synapse.response_time = timeout  # Default to timeout
-                
-                # Handle miner_uid field
-                if 'miner_uid' in response:
-                    temp_synapse.miner_uid = response.get('miner_uid')
-                else:
-                    temp_synapse.miner_uid = 0  # Default UID
-                
-                response = temp_synapse
-                
-            # Extra safety to ensure response has necessary attributes
-            if not hasattr(response, 'prediction') or response.prediction is None:
-                response.set_prediction({})
-                
-            if not hasattr(response, 'confidence'):
-                response.confidence = 0.5
-                
-            if not hasattr(response, 'response_time'):
-                response.response_time = timeout
-                
-            if not hasattr(response, 'miner_uid'):
-                response.miner_uid = 0
+            # Convert dict to ConversionSynapse with strict validation
+            temp_synapse = ConversionSynapse(features={})
             
-            # Ensure prediction is properly formatted
-            if isinstance(response.prediction, dict) and (not response.prediction or
-                    'conversion_happened' not in response.prediction or
-                    'time_to_conversion_seconds' not in response.prediction):
-                response.set_prediction(response.prediction)
-                
-            if not response.prediction:
-                logger.warning(f"Empty prediction from miner {response.miner_uid}")
-                return 0.0
-
-            # Compute individual rewards
-            class_reward = self.classification_reward(response.prediction, targets)
-            reg_score = self.regression_reward(response.prediction, targets)
-            div_reward = self.diversity_reward(response.confidence)
-            pred_reward = self.prediction_reward(class_reward, reg_score, div_reward)
-            time_reward_value = self.calculate_time_reward(response.response_time, timeout)
-
-            # Compute total reward
-            total_reward = self.total_reward(pred_reward, time_reward_value)
-
-            # Update EMA score
-            miner_uid = response.miner_uid
-            previous_ema = self.ema_scores.get(miner_uid, 0.0)
-            self.ema_scores[miner_uid] = self.update_ema(total_reward, previous_ema)
-
-            # Store ground truth for class weight updates
-            self.ground_truth_history.append(targets)
-            if len(self.ground_truth_history) % HISTORY_UPDATE_INTERVAL == 0:
-                self.update_class_weights()
-                # Keep only most recent history to prevent memory growth
-                self.ground_truth_history = self.ground_truth_history[-HISTORY_UPDATE_INTERVAL:]
-
-            # Log metrics
-            log_metrics(response, total_reward, targets)
-
-            return total_reward
+            # Set prediction - this will raise errors if invalid
+            temp_synapse.set_prediction(response['prediction'])
             
-        except Exception as e:
-            logger.error(f"Error computing reward: {e}")
-            # Return zero score on error for safety
-            return 0.0
+            # Validate confidence field
+            if 'confidence' not in response:
+                raise ValueError("Dict response must contain 'confidence' field")
+            temp_synapse.confidence = float(response['confidence'])
+            assert 0.0 <= temp_synapse.confidence <= 1.0, f"Confidence must be between 0 and 1, got {temp_synapse.confidence}"
+            
+            # Validate response_time field
+            if 'response_time' not in response:
+                raise ValueError("Dict response must contain 'response_time' field")
+            temp_synapse.response_time = float(response['response_time'])
+            assert temp_synapse.response_time >= 0, f"Response time must be non-negative, got {temp_synapse.response_time}"
+            
+            # Validate miner_uid field
+            if 'miner_uid' not in response:
+                raise ValueError("Dict response must contain 'miner_uid' field")
+            temp_synapse.miner_uid = int(response['miner_uid'])
+            assert temp_synapse.miner_uid >= 0, f"Miner UID must be non-negative, got {temp_synapse.miner_uid}"
+            
+            response = temp_synapse
+        
+        # Validate ConversionSynapse response
+        assert hasattr(response, 'prediction'), "Response must have prediction attribute"
+        assert response.prediction is not None, "Response prediction cannot be None"
+        assert hasattr(response, 'confidence'), "Response must have confidence attribute"
+        assert response.confidence is not None, "Response confidence cannot be None"
+        assert hasattr(response, 'response_time'), "Response must have response_time attribute"
+        assert hasattr(response, 'miner_uid'), "Response must have miner_uid attribute"
+        
+        # Validate prediction format
+        assert isinstance(response.prediction, dict), f"Response prediction must be dict, got {type(response.prediction)}"
+        assert 'conversion_happened' in response.prediction, "Response prediction must contain 'conversion_happened'"
+        assert 'time_to_conversion_seconds' in response.prediction, "Response prediction must contain 'time_to_conversion_seconds'"
+        
+        # Validate confidence
+        assert 0.0 <= response.confidence <= 1.0, f"Confidence must be between 0 and 1, got {response.confidence}"
+        
+        # Validate response time
+        assert response.response_time >= 0, f"Response time must be non-negative, got {response.response_time}"
+
+        # Compute individual rewards
+        class_reward = self.classification_reward(response.prediction, targets)
+        reg_score = self.regression_reward(response.prediction, targets)
+        div_reward = self.diversity_reward(response.confidence)
+        pred_reward = self.prediction_reward(class_reward, reg_score, div_reward)
+        time_reward_value = self.calculate_time_reward(response.response_time, timeout)
+
+        # Compute total reward
+        total_reward = self.total_reward(pred_reward, time_reward_value)
+
+        # Update EMA score
+        miner_uid = response.miner_uid
+        previous_ema = self.ema_scores.get(miner_uid, 0.0)
+        self.ema_scores[miner_uid] = self.update_ema(total_reward, previous_ema)
+
+        # Store ground truth for class weight updates
+        self.ground_truth_history.append(targets)
+        if len(self.ground_truth_history) % HISTORY_UPDATE_INTERVAL == 0:
+            self.update_class_weights()
+            # Keep only most recent history to prevent memory growth
+            self.ground_truth_history = self.ground_truth_history[-HISTORY_UPDATE_INTERVAL:]
+
+        # Log metrics
+        log_metrics(response, total_reward, targets)
+
+        return total_reward
 
     def get_rewards(self, 
                    targets: PredictionOutput, 

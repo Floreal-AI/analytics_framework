@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from conversion_subnet.protocol import ConversionSynapse
 from conversion_subnet.miner.miner import BinaryClassificationMiner
 from conversion_subnet.validator.reward import Validator
-from conversion_subnet.validator.forward import generate_ground_truth, forward
+from conversion_subnet.validator.forward import forward
 from conversion_subnet.validator import forward as forward_module
 from conversion_subnet.utils.uids import get_random_uids
 
@@ -68,8 +68,11 @@ class TestMinerValidatorIntegration:
         mock_miner.metagraph = MagicMock()
         mock_miner.metagraph.hotkeys = ["test_hotkey"]
         
-        # Generate ground truth
-        ground_truth = generate_ground_truth(sample_features)
+        # Use external ground truth
+        ground_truth = {
+            'conversion_happened': 1,
+            'time_to_conversion_seconds': 60.0
+        }
         
         # Create expected output
         expected_output = {
@@ -109,7 +112,10 @@ class TestMinerValidatorIntegration:
         validator = Validator()
         
         # We'll test the reward calculation directly
-        ground_truth = generate_ground_truth(sample_features)
+        ground_truth = {
+            'conversion_happened': 1,
+            'time_to_conversion_seconds': 60.0
+        }
         
         # Create expected output from miner
         expected_output = {

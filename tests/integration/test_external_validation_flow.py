@@ -23,7 +23,6 @@ from conversion_subnet.validator.validation_client import (
 from conversion_subnet.validator.forward import (
     forward, 
     get_external_validation,
-    generate_ground_truth,
     validate_prediction
 )
 from conversion_subnet.validator.reward import Validator
@@ -116,4 +115,70 @@ class TestExternalValidationFlow:
         # Correct prediction should get higher reward
         assert correct_reward > incorrect_reward
         assert 0.0 <= correct_reward <= 1.0
-        assert 0.0 <= incorrect_reward <= 1.0 
+        assert 0.0 <= incorrect_reward <= 1.0
+
+    async def test_get_external_validation_success(self):
+        """Test successful external validation."""
+        test_pk = "test-pk-123"
+        mock_result = ValidationResult(
+            test_pk=test_pk,
+            labels=True,
+            submission_deadline="2025-06-05T20:34:49.944Z",
+            response_time=0.2
+        )
+
+        # Configure a client and mock its method
+        import conversion_subnet.validator.validation_client
+        configure_default_validation_client("https://test-api.com/v1", "test-key", 30.0)
+
+        with patch.object(
+            conversion_subnet.validator.validation_client._default_client, 
+            'get_validation_result'
+        ) as mock_get_result:
+            mock_get_result.return_value = mock_result
+            
+            result = await get_external_validation(test_pk)
+            
+            assert result == mock_result
+            mock_get_result.assert_called_once_with(test_pk)
+
+    async def test_get_external_validation_api_error(self):
+        """Test get_external_validation when API returns error."""
+        test_pk = "test-pk-456"
+
+        # Reset the default client to ensure our mock is used
+        import conversion_subnet.validator.validation_client
+        conversion_subnet.validator.validation_client._default_client = None
+
+        with pytest.raises(RuntimeError, match="External validation failed"):
+            await get_external_validation(test_pk)
+
+    async def test_get_external_validation_validation_error(self):
+        """Test get_external_validation when API returns ValidationError."""
+        test_pk = "test-pk-789"
+
+        # Configure a client but make it fail with ValidationError
+        import conversion_subnet.validator.validation_client
+        configure_default_validation_client("https://test-api.com/v1", "test-key", 30.0)
+
+        with patch.object(
+            conversion_subnet.validator.validation_client._default_client, 
+            'get_validation_result'
+        ) as mock_get_result:
+            mock_get_result.side_effect = ValidationError("API Error")
+            
+            with pytest.raises(ValidationError, match="External validation failed for test_pk"):
+                await get_external_validation(test_pk)
+            
+            mock_get_result.assert_called_once_with(test_pk)
+
+    async def test_get_external_validation_client_not_configured(self):
+        """Test get_external_validation when client is not configured."""
+        # Reset client configuration
+        import conversion_subnet.validator.validation_client
+        conversion_subnet.validator.validation_client._default_client = None
+        
+        test_pk = "test-pk-789"
+        
+        with pytest.raises(RuntimeError, match="External validation failed"):
+            await get_external_validation(test_pk) 

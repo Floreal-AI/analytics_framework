@@ -40,9 +40,9 @@ from pathlib import Path
 from setuptools import find_namespace_packages, setup
 
 ROOT_DIR = Path(__file__).parent.resolve()
-INIT_PATH = ROOT_DIR / "conversion_subnet" / "__init__.py"
+VERSION_PATH = ROOT_DIR / "conversion_subnet" / "_version.py"
 
-_spec = spec_from_file_location("conversion_subnet", INIT_PATH)
+_spec = spec_from_file_location("conversion_subnet._version", VERSION_PATH)
 pkg = module_from_spec(_spec)  # type: ignore[arg-type]
 _spec.loader.exec_module(pkg)  # type: ignore[attr-defined]
 VERSION: str = pkg.__version__

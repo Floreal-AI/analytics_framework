@@ -139,36 +139,60 @@ def log_metrics(response: ConversionSynapse, reward: float, ground_truth: Dict):
 def preprocess_prediction(prediction: Dict) -> Dict:
     """
     Preprocess prediction data to ensure correct data types.
+    NO FALLBACKS - raises errors if validation fails.
     
     Args:
         prediction (Dict): Dictionary with miner predictions
         
     Returns:
-        Dict: Dictionary with corrected data types
+        Dict: Dictionary with validated data types
+        
+    Raises:
+        ValueError: If prediction validation fails
+        AssertionError: If prediction format is wrong
     """
     if not prediction:
-        return {}
+        raise ValueError("Prediction cannot be empty - miners must provide valid predictions")
         
+    assert isinstance(prediction, dict), f"Prediction must be dict, got {type(prediction)}"
+    
     result = prediction.copy()
     
-    # Ensure conversion_happened is an integer
-    if 'conversion_happened' in result and result['conversion_happened'] is not None:
-        try:
-            result['conversion_happened'] = int(result['conversion_happened'])
-        except (ValueError, TypeError):
-            result['conversion_happened'] = 0
-    # If None, set a default value of 0
-    elif 'conversion_happened' in result and result['conversion_happened'] is None:
-        result['conversion_happened'] = 0
-            
-    # Ensure time_to_conversion_seconds is a float
-    if 'time_to_conversion_seconds' in result and result['time_to_conversion_seconds'] is not None:
-        try:
-            result['time_to_conversion_seconds'] = float(result['time_to_conversion_seconds'])
-        except (ValueError, TypeError):
-            result['time_to_conversion_seconds'] = -1.0
-    # If None, set a default value of -1.0
-    elif 'time_to_conversion_seconds' in result and result['time_to_conversion_seconds'] is None:
-        result['time_to_conversion_seconds'] = -1.0
+    # Check required fields
+    if 'conversion_happened' not in result:
+        raise ValueError("Prediction must contain 'conversion_happened' field")
+    if 'time_to_conversion_seconds' not in result:
+        raise ValueError("Prediction must contain 'time_to_conversion_seconds' field")
+    
+    # Validate conversion_happened - NO FALLBACKS
+    if result['conversion_happened'] is None:
+        raise ValueError("conversion_happened cannot be None")
+    
+    try:
+        conversion_happened = int(result['conversion_happened'])
+        if conversion_happened not in [0, 1]:
+            raise ValueError(f"conversion_happened must be 0 or 1, got {conversion_happened}")
+        result['conversion_happened'] = conversion_happened
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid conversion_happened value '{result['conversion_happened']}': {e}") from e
+    
+    # Validate time_to_conversion_seconds - NO FALLBACKS
+    if result['time_to_conversion_seconds'] is None:
+        raise ValueError("time_to_conversion_seconds cannot be None")
+    
+    try:
+        time_to_conversion = float(result['time_to_conversion_seconds'])
+        # Allow -1.0 or positive values only
+        if time_to_conversion != -1.0 and time_to_conversion <= 0:
+            raise ValueError(f"time_to_conversion_seconds must be -1.0 or positive, got {time_to_conversion}")
+        result['time_to_conversion_seconds'] = time_to_conversion
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid time_to_conversion_seconds value '{result['time_to_conversion_seconds']}': {e}") from e
+    
+    # Validate logical consistency
+    if result['conversion_happened'] == 1 and result['time_to_conversion_seconds'] == -1.0:
+        raise ValueError("If conversion_happened=1, time_to_conversion_seconds must be positive, not -1.0")
+    if result['conversion_happened'] == 0 and result['time_to_conversion_seconds'] != -1.0:
+        raise ValueError("If conversion_happened=0, time_to_conversion_seconds must be -1.0")
             
     return result

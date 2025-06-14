@@ -23,6 +23,7 @@ python-dotenv = ">=1.0.0"
 xgboost = "*"
 scikit-learn = "*"
 joblib = "*"
+fuzzywuzzy = "*"
 
 [dev-packages]
 ipykernel = "*"

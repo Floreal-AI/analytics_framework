@@ -104,7 +104,13 @@ class Miner(BaseMinerNeuron):
 
         except Exception as e:
             logger.error(f"Error in forward: {e}")
-            synapse.prediction = {}
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            # Return a valid default prediction instead of invalid -999 values
+            synapse.prediction = {
+                'conversion_happened': 0,
+                'time_to_conversion_seconds': -1.0
+            }
             synapse.confidence = 0.0
 
         return synapse

@@ -9,15 +9,20 @@ for binary conversion prediction.
 import uuid
 import random
 import time
+import asyncio
 import numpy as np
 import pandas as pd
 from faker import Faker
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
+from datetime import datetime
 
 from conversion_subnet.protocol import ConversionSynapse, ConversationFeatures
 from conversion_subnet.utils.log import logger
 from conversion_subnet.validator.utils import validate_features
+from conversion_subnet.validator.reward import Validator
+from conversion_subnet.validator.forward import get_external_validation
+from conversion_subnet.validator.validation_client import ValidationError
 
 # Set random seed for reproducibility
 seed = 42
@@ -397,6 +402,326 @@ class ConversationChallengeGenerator:
         )
         
         return synapse
+    
+    async def process_challenges_one_by_one(
+        self, 
+        miner_forward_function: callable,
+        num_challenges: int = 5,
+        miner_uid: int = 0,
+        template_distribution: Optional[Dict[str, float]] = None,
+        include_validation: bool = True,
+        delay_between_challenges: float = 0.5
+    ) -> Dict[str, Any]:
+        """
+        Process challenges one by one with detailed step-by-step execution.
+        
+        This method implements sequential challenge processing:
+        1. Generate a challenge
+        2. Send to miner
+        3. Wait for response
+        4. Validate response (if validation enabled)
+        5. Calculate reward
+        6. Log detailed results
+        7. Repeat for next challenge
+        
+        Args:
+            miner_forward_function: Function to call miner (e.g., miner.forward)
+            num_challenges: Number of challenges to process
+            miner_uid: UID of the target miner
+            template_distribution: Distribution of templates to use
+            include_validation: Whether to fetch external validation
+            delay_between_challenges: Delay in seconds between challenges
+            
+        Returns:
+            Dict containing detailed results of all challenges
+        """
+        logger.info(f"Starting one-by-one challenge processing: {num_challenges} challenges for miner {miner_uid}")
+        
+        # Initialize validator for reward calculation
+        validator = Validator()
+        
+        # Results tracking
+        results = {
+            'metadata': {
+                'start_time': datetime.now().isoformat(),
+                'miner_uid': miner_uid,
+                'num_challenges': num_challenges,
+                'include_validation': include_validation,
+                'template_distribution': template_distribution or 'default'
+            },
+            'challenges': [],
+            'summary': {
+                'total_challenges': 0,
+                'successful_predictions': 0,
+                'successful_validations': 0,
+                'total_reward': 0.0,
+                'average_reward': 0.0,
+                'total_processing_time': 0.0,
+                'prediction_accuracy': 0.0
+            }
+        }
+        
+        start_time = time.time()
+        
+        # Process challenges one by one
+        for challenge_idx in range(num_challenges):
+            challenge_start_time = time.time()
+            
+            logger.info(f"Processing challenge {challenge_idx + 1}/{num_challenges}")
+            
+            challenge_result = {
+                'challenge_id': challenge_idx + 1,
+                'timestamp': datetime.now().isoformat(),
+                'success': False,
+                'error': None,
+                'processing_steps': []
+            }
+            
+            try:
+                # Step 1: Generate challenge
+                step_start = time.time()
+                
+                features = self.generate_challenge_conversation(
+                    template_name=self._select_template_for_challenge(template_distribution)
+                )
+                
+                ground_truth_target = features['target']
+                synapse = self.create_synapse_from_features(features, miner_uid)
+                
+                step_time = time.time() - step_start
+                challenge_result['processing_steps'].append({
+                    'step': 'generate_challenge',
+                    'duration': round(step_time, 4),
+                    'success': True,
+                    'details': {
+                        'session_id': features['session_id'],
+                        'template_used': self._identify_template(features),
+                        'ground_truth': ground_truth_target,
+                        'feature_count': len(synapse.features),
+                        'total_messages': features.get('totalMessages', 0),
+                        'conversation_duration': features.get('conversationDurationMinutes', 0)
+                    }
+                })
+                
+                logger.debug(f"  Generated challenge: session_id={features['session_id']}, ground_truth={ground_truth_target}")
+                
+                # Step 2: Send to miner and get prediction
+                step_start = time.time()
+                
+                try:
+                    miner_response = await asyncio.to_thread(miner_forward_function, synapse)
+                    
+                    # Handle different response formats
+                    if isinstance(miner_response, dict):
+                        prediction = miner_response
+                    elif hasattr(miner_response, 'prediction'):
+                        prediction = miner_response.prediction
+                    else:
+                        # Fallback for simple numeric responses
+                        prediction = {
+                            'conversion_happened': int(miner_response) if isinstance(miner_response, (int, float)) else 0,
+                            'time_to_conversion_seconds': 60.0 if miner_response == 1 else -1.0
+                        }
+                    
+                    step_time = time.time() - step_start
+                    challenge_result['processing_steps'].append({
+                        'step': 'miner_prediction',
+                        'duration': round(step_time, 4),
+                        'success': True,
+                        'details': {
+                            'prediction': prediction,
+                            'confidence': getattr(miner_response, 'confidence', 0.8) if hasattr(miner_response, 'confidence') else 0.8,
+                            'response_time': step_time
+                        }
+                    })
+                    
+                    logger.debug(f"  Miner prediction: {prediction}")
+                    
+                except Exception as pred_error:
+                    step_time = time.time() - step_start
+                    challenge_result['processing_steps'].append({
+                        'step': 'miner_prediction',
+                        'duration': round(step_time, 4),
+                        'success': False,
+                        'error': str(pred_error)
+                    })
+                    logger.error(f"  Miner prediction failed: {pred_error}")
+                    continue
+                
+                # Step 3: Get validation (ground truth) if enabled
+                validation_result = None
+                if include_validation:
+                    step_start = time.time()
+                    
+                    try:
+                        # Try to get external validation
+                        test_pk = features.get('session_id', f"challenge_{challenge_idx}")
+                        validation_result = await get_external_validation(test_pk)
+                        
+                        ground_truth = {
+                            'conversion_happened': 1 if validation_result.labels else 0,
+                            'time_to_conversion_seconds': 60.0 if validation_result.labels else -1.0
+                        }
+                        
+                        step_time = time.time() - step_start
+                        challenge_result['processing_steps'].append({
+                            'step': 'external_validation',
+                            'duration': round(step_time, 4),
+                            'success': True,
+                            'details': {
+                                'validation_source': 'external_api',
+                                'ground_truth': ground_truth,
+                                'test_pk': test_pk
+                            }
+                        })
+                        
+                        logger.debug(f"  External validation: {ground_truth}")
+                        
+                    except (ValidationError, Exception) as val_error:
+                        # NO FALLBACKS - let validation errors bubble up
+                        step_time = time.time() - step_start
+                        challenge_result['processing_steps'].append({
+                            'step': 'external_validation',
+                            'duration': round(step_time, 4),
+                            'success': False,
+                            'error': str(val_error),
+                        })
+                        
+                        logger.error(f"  External validation failed: {val_error}")
+                        # Re-raise the error instead of using fallback
+                        raise ValidationError(f"External validation failed for test_pk {test_pk}: {val_error}") from val_error
+                else:
+                    # Use generated ground truth
+                    ground_truth = {
+                        'conversion_happened': int(ground_truth_target),
+                        'time_to_conversion_seconds': features.get('timeToConversionSeconds', -1.0)
+                    }
+                    
+                    challenge_result['processing_steps'].append({
+                        'step': 'use_generated_ground_truth',
+                        'duration': 0.0,
+                        'success': True,
+                        'details': {'ground_truth': ground_truth}
+                    })
+                
+                # Step 4: Calculate reward
+                step_start = time.time()
+                
+                try:
+                    # Update synapse with prediction for reward calculation
+                    synapse.prediction = prediction
+                    synapse.confidence = challenge_result['processing_steps'][-2]['details'].get('confidence', 0.8)
+                    synapse.response_time = challenge_result['processing_steps'][-2]['details']['response_time']
+                    
+                    reward = validator.reward(ground_truth, synapse)
+                    
+                    step_time = time.time() - step_start
+                    challenge_result['processing_steps'].append({
+                        'step': 'reward_calculation',
+                        'duration': round(step_time, 4),
+                        'success': True,
+                        'details': {
+                            'reward': round(reward, 6),
+                            'prediction_correct': prediction['conversion_happened'] == ground_truth['conversion_happened'],
+                            'ground_truth': ground_truth,
+                            'prediction': prediction
+                        }
+                    })
+                    
+                    # Update results
+                    results['summary']['total_reward'] += reward
+                    results['summary']['successful_predictions'] += 1
+                    if include_validation and validation_result:
+                        results['summary']['successful_validations'] += 1
+                    
+                    logger.info(f"  Reward calculated: {reward:.6f}")
+                    challenge_result['success'] = True
+                    
+                except Exception as reward_error:
+                    step_time = time.time() - step_start
+                    challenge_result['processing_steps'].append({
+                        'step': 'reward_calculation',
+                        'duration': round(step_time, 4),
+                        'success': False,
+                        'error': str(reward_error)
+                    })
+                    logger.error(f"  Reward calculation failed: {reward_error}")
+                
+                # Calculate challenge processing time
+                challenge_processing_time = time.time() - challenge_start_time
+                challenge_result['total_processing_time'] = round(challenge_processing_time, 4)
+                
+                logger.info(f"  Challenge {challenge_idx + 1} completed in {challenge_processing_time:.3f}s")
+                
+            except Exception as e:
+                challenge_result['error'] = str(e)
+                logger.error(f"  Challenge {challenge_idx + 1} failed: {e}")
+            
+            # Store challenge result
+            results['challenges'].append(challenge_result)
+            results['summary']['total_challenges'] += 1
+            
+            # Add delay between challenges
+            if challenge_idx < num_challenges - 1 and delay_between_challenges > 0:
+                logger.debug(f"  Waiting {delay_between_challenges}s before next challenge...")
+                await asyncio.sleep(delay_between_challenges)
+        
+        # Calculate final summary statistics
+        total_time = time.time() - start_time
+        results['summary']['total_processing_time'] = round(total_time, 4)
+        
+        if results['summary']['successful_predictions'] > 0:
+            results['summary']['average_reward'] = round(
+                results['summary']['total_reward'] / results['summary']['successful_predictions'], 6
+            )
+            
+            # Calculate prediction accuracy
+            correct_predictions = sum(
+                1 for challenge in results['challenges']
+                if challenge['success'] and any(
+                    step['step'] == 'reward_calculation' and step['success'] and step['details']['prediction_correct']
+                    for step in challenge['processing_steps']
+                )
+            )
+            results['summary']['prediction_accuracy'] = round(
+                correct_predictions / results['summary']['successful_predictions'], 3
+            )
+        
+        results['metadata']['end_time'] = datetime.now().isoformat()
+        results['metadata']['total_duration'] = round(total_time, 4)
+        
+        logger.info(f"One-by-one processing completed: {results['summary']['successful_predictions']}/{num_challenges} successful")
+        logger.info(f"Total reward: {results['summary']['total_reward']:.6f}, Average: {results['summary']['average_reward']:.6f}")
+        logger.info(f"Prediction accuracy: {results['summary']['prediction_accuracy']:.1%}")
+        
+        return results
+    
+    def _select_template_for_challenge(self, template_distribution: Optional[Dict[str, float]]) -> Optional[str]:
+        """Select a template based on distribution or randomly."""
+        if template_distribution is None:
+            return None  # Will use random selection in generate_challenge_conversation
+        
+        return np.random.choice(
+            list(template_distribution.keys()),
+            p=list(template_distribution.values())
+        )
+    
+    def _identify_template(self, features: Dict) -> str:
+        """Identify which template was likely used based on features."""
+        total_messages = features.get('totalMessages', 0)
+        duration_minutes = features.get('conversationDurationMinutes', 0)
+        target = features.get('target', 0)
+        
+        if total_messages <= 5 and duration_minutes <= 3:
+            return 'quick_exit'
+        elif total_messages >= 20 and target == 0:
+            return 'extended_exploration'
+        elif target == 1 and total_messages >= 15:
+            return 'high_engagement_conversion'
+        elif features.get('isBusinessHours', 0) == 1:
+            return 'business_hours_professional'
+        else:
+            return 'medium_engagement'
 
 
 # Convenience functions for easy usage
@@ -428,6 +753,61 @@ def create_test_synapse(miner_uid: int = 0, template_name: Optional[str] = None)
     synapse = generator.create_synapse_from_features(features, miner_uid)
     
     return synapse, ground_truth
+
+async def process_miner_challenges_one_by_one(
+    miner_forward_function: callable,
+    num_challenges: int = 5,
+    miner_uid: int = 0,
+    template_distribution: Optional[Dict[str, float]] = None,
+    include_validation: bool = True,
+    delay_between_challenges: float = 0.5
+) -> Dict[str, Any]:
+    """
+    Convenience function for one-by-one challenge processing.
+    
+    This function provides easy access to sequential challenge processing
+    without needing to instantiate the ConversationChallengeGenerator class.
+    
+    Args:
+        miner_forward_function: Function to call miner (e.g., miner.forward)
+        num_challenges: Number of challenges to process sequentially
+        miner_uid: UID of the target miner
+        template_distribution: Distribution of templates to use
+        include_validation: Whether to fetch external validation
+        delay_between_challenges: Delay in seconds between challenges
+        
+    Returns:
+        Dict containing detailed results of all challenges
+        
+    Example:
+        ```python
+        from conversion_subnet.miner.miner import BinaryClassificationMiner
+        from conversion_subnet.validator.send_challenge import process_miner_challenges_one_by_one
+        
+        miner = BinaryClassificationMiner()
+        
+        results = await process_miner_challenges_one_by_one(
+            miner_forward_function=miner.forward,
+            num_challenges=3,
+            miner_uid=123,
+            include_validation=False,
+            delay_between_challenges=1.0
+        )
+        
+        print(f"Total reward: {results['summary']['total_reward']}")
+        print(f"Average reward: {results['summary']['average_reward']}")
+        print(f"Accuracy: {results['summary']['prediction_accuracy']}")
+        ```
+    """
+    generator = ConversationChallengeGenerator()
+    return await generator.process_challenges_one_by_one(
+        miner_forward_function=miner_forward_function,
+        num_challenges=num_challenges,
+        miner_uid=miner_uid,
+        template_distribution=template_distribution,
+        include_validation=include_validation,
+        delay_between_challenges=delay_between_challenges
+    )
 
 
 if __name__ == "__main__":

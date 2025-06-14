@@ -54,7 +54,7 @@ cp conversion_subnet/data_api/env.example conversion_subnet/data_api/.env
 **Option B: Environment Variables**
 ```bash
 export VOICEFORM_API_KEY="your-api-key-here"
-export VOICEFORM_API_BASE_URL="https://uqhnd2kvgi.execute-api.eu-west-3.amazonaws.com/v1/bittensor/analytics"
+export VOICEFORM_API_BASE_URL="https://uqhnd2kvgi.execute-api.eu-west-3.amazonaws.com/v1"
 export DATA_API_TIMEOUT="30"  # Optional, defaults to 30
 ```
 

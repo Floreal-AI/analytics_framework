@@ -37,7 +37,7 @@ TOTAL_REWARD_W: Dict[str, float] = {       # total reward weights
 }
 
 # Timeouts and limits
-TIMEOUT_SEC: int = 60                      # zero reward once response_time ≥ 60 s
+TIMEOUT_SEC: int = 120                     # Increased timeout for slow networks (zero reward once response_time ≥ 120 s)
 EMA_BETA: float = 0.1                      # EMA smoothing factor (higher = more weight to new data)
 
 # Model parameters

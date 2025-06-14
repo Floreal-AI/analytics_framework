@@ -58,17 +58,47 @@ def pytest_sessionfinish(session, exitstatus):
     # Get stats from terminal reporter
     reporter = session.config.pluginmanager.get_plugin("terminalreporter")
     
+    # Get session start time (handle different pytest versions)
+    session_start_time = None
+    if hasattr(reporter, '_sessionstarttime'):
+        session_start_time = reporter._sessionstarttime
+    elif hasattr(reporter, '_session_start'):
+        session_start_time = reporter._session_start
+    elif hasattr(session, 'testsfailed'):
+        # Fallback: session may have started timestamp
+        session_start_time = getattr(session, '_start_time', None)
+    
+    # Calculate duration - handle different timestamp types
+    duration = None
+    if session_start_time is not None:
+        try:
+            # Convert to float if it's not already
+            if hasattr(session_start_time, 'timestamp'):
+                # It's a datetime-like object
+                start_timestamp = session_start_time.timestamp()
+            elif isinstance(session_start_time, (int, float)):
+                # It's already a timestamp
+                start_timestamp = float(session_start_time)
+            else:
+                # Try to convert to float
+                start_timestamp = float(session_start_time)
+            
+            duration = datetime.datetime.now().timestamp() - start_timestamp
+        except (AttributeError, TypeError, ValueError):
+            # If conversion fails, just set duration to None
+            duration = None
+    
     # Create the test summary
     summary = {
         "exitstatus": exitstatus,
         "test_counts": {
-            "total": reporter._numcollected,
+            "total": getattr(reporter, '_numcollected', 0),
             "passed": len(reporter.stats.get("passed", [])),
             "failed": len(reporter.stats.get("failed", [])),
             "skipped": len(reporter.stats.get("skipped", [])),
             "errors": len(reporter.stats.get("error", [])),
         },
-        "duration": reporter._sessionstarttime and (datetime.datetime.now().timestamp() - reporter._sessionstarttime) or None
+        "duration": duration
     }
     
     # Add detailed test results if available
@@ -86,6 +116,7 @@ def pytest_sessionfinish(session, exitstatus):
     
     # Save the summary
     summary_path = test_results_dir / "reports" / f"summary_{timestamp}.json"
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
     

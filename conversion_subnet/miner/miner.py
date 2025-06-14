@@ -140,83 +140,101 @@ class BinaryClassificationMiner:
     def _extract_features_array(self, synapse: ConversionSynapse) -> np.ndarray:
         """
         Extract and convert features to numpy array for model prediction.
+        NO FALLBACKS - raises errors if feature extraction fails.
         
         Args:
             synapse (ConversionSynapse): Input synapse containing features
             
         Returns:
-            np.ndarray: Feature array ready for model input
+            np.ndarray: Feature array ready for model input (1, 42)
+            
+        Raises:
+            AssertionError: If feature validation fails
+            ValueError: If feature extraction fails
         """
-        # Convert features to list of values, skipping string values
-        features_values = []
-        for key, value in synapse.features.items():
-            if isinstance(value, str):
-                # Skip string values like session_id
-                continue
-            if value is None:
-                # Replace None with 0
-                features_values.append(0.0)
-            else:
-                features_values.append(float(value))
+        assert synapse is not None, "Synapse cannot be None"
+        assert hasattr(synapse, 'features'), "Synapse must have features attribute"
+        assert isinstance(synapse.features, dict), f"Synapse features must be dict, got {type(synapse.features)}"
+        assert len(synapse.features) > 0, "Synapse features cannot be empty"
         
-        # Convert to numpy array
-        if not features_values:
-            logger.warning("No valid numeric features found in synapse")
-            # Return array of zeros with expected feature count
-            return np.zeros((1, 43))  # Based on our CSV structure (44 cols - 1 id col)
+        # Use the standardized feature extraction - NO FALLBACKS
+        from conversion_subnet.utils.feature_validation import get_standardized_features_for_model
         
-        features_array = np.array(features_values).reshape(1, -1)
+        logger.debug(f"Input synapse has {len(synapse.features)} features")
+        logger.debug(f"Feature keys: {list(synapse.features.keys())}")
+        
+        # This will raise AssertionError or ValueError if anything is wrong
+        features_array = get_standardized_features_for_model(synapse.features)
+        
+        # Final assertion to ensure we got exactly what we expect
+        assert features_array.shape == (1, 42), f"Feature extraction must return (1, 42), got {features_array.shape}"
+        
+        logger.debug(f"Successfully extracted features: shape={features_array.shape}")
         return features_array
-        
+    
     def forward(self, synapse: ConversionSynapse) -> PredictionOutput:
         """
-        Process the input features and return prediction
+        Process the input features and return prediction.
+        NO FALLBACKS - raises errors if prediction fails.
         
         Args:
             synapse (ConversionSynapse): Input synapse containing features
             
         Returns:
             PredictionOutput: Dictionary containing prediction and confidence
+            
+        Raises:
+            AssertionError: If validation fails
+            ValueError: If prediction fails
         """
-        try:
-            if self.model_type == "xgboost":
-                return self._forward_xgboost(synapse)
-            else:
-                return self._forward_pytorch(synapse)
-                
-        except Exception as e:
-            # Log error and return safe default
-            logger.error(f"Error in forward ({self.model_type}): {e}")
-            return {
-                'conversion_happened': 0,
-                'time_to_conversion_seconds': -1.0,
-                'confidence': 0.0
-            }
+        assert synapse is not None, "Synapse cannot be None"
+        assert hasattr(synapse, 'features'), "Synapse must have features"
+        
+        logger.debug(f"Processing {self.model_type} prediction for synapse with {len(synapse.features)} features")
+        
+        # Route to appropriate model - NO fallbacks
+        if self.model_type == "xgboost":
+            return self._forward_xgboost(synapse)
+        else:
+            return self._forward_pytorch(synapse)
     
     def _forward_xgboost(self, synapse: ConversionSynapse) -> PredictionOutput:
         """
         Forward pass using XGBoost model.
+        NO FALLBACKS - raises errors if prediction fails.
         
         Args:
             synapse (ConversionSynapse): Input synapse containing features
             
         Returns:
             PredictionOutput: Dictionary containing prediction and confidence
+            
+        Raises:
+            AssertionError: If model or features are invalid
+            ValueError: If prediction fails
         """
-        if self.model is None:
-            logger.warning("XGBoost model not available, returning default prediction")
-            return {
-                'conversion_happened': 0,
-                'time_to_conversion_seconds': -1.0,
-                'confidence': 0.0
-            }
+        assert self.model is not None, "XGBoost model is not loaded - cannot make predictions"
+        assert synapse is not None, "Synapse cannot be None"
         
-        # Extract features
+        # Extract features with strict validation
         features = self._extract_features_array(synapse)
         
-        # Get prediction and probability
+        # Assert the features are exactly what the model expects
+        assert features.shape == (1, 42), f"Model expects (1, 42) features, got {features.shape}"
+        assert not np.any(np.isnan(features)), "Features contain NaN values"
+        assert np.all(np.isfinite(features)), "Features contain infinite values"
+        
+        logger.debug(f"Making XGBoost prediction with features shape: {features.shape}")
+        
+        # Make prediction - let any errors bubble up
         prediction = int(self.model.predict(features)[0])
         confidence = float(self.model.predict_proba(features)[0, 1])
+        
+        # Validate prediction outputs
+        assert prediction in [0, 1], f"Prediction must be 0 or 1, got {prediction}"
+        assert 0.0 <= confidence <= 1.0, f"Confidence must be between 0 and 1, got {confidence}"
+        
+        logger.debug(f"XGBoost prediction: {prediction}, confidence: {confidence:.3f}")
         
         return {
             'conversion_happened': prediction,
@@ -227,46 +245,54 @@ class BinaryClassificationMiner:
     def _forward_pytorch(self, synapse: ConversionSynapse) -> PredictionOutput:
         """
         Forward pass using PyTorch model.
+        NO FALLBACKS - raises errors if prediction fails.
         
         Args:
             synapse (ConversionSynapse): Input synapse containing features
             
         Returns:
             PredictionOutput: Dictionary containing prediction and confidence
+            
+        Raises:
+            AssertionError: If validation fails
+            ValueError: If prediction fails
         """
-        # Convert features to tensor with proper type handling
-        features_values = []
-        for value in synapse.features.values():
-            if isinstance(value, str):
-                # Skip string values or convert to a numeric representation if needed
-                continue
-            features_values.append(value)
+        assert synapse is not None, "Synapse cannot be None"
+        assert hasattr(synapse, 'features'), "Synapse must have features"
         
-        # Check if we have any features left after filtering
-        if not features_values:
-            logger.warning("No valid numeric features found in synapse")
-            return {
-                'conversion_happened': 0,
-                'time_to_conversion_seconds': -1.0,
-                'confidence': 0.0
-            }
+        # Extract features with strict validation - NO FALLBACKS
+        features = self._extract_features_array(synapse)
         
-        features = torch.tensor(features_values, dtype=torch.float32).to(self.device)
+        # Convert to tensor
+        features_tensor = torch.tensor(features, dtype=torch.float32).to(self.device)
         
-        # Get prediction
+        # Validate tensor shape
+        assert features_tensor.shape == (1, 42), f"Features tensor must have shape (1, 42), got {features_tensor.shape}"
+        assert not torch.any(torch.isnan(features_tensor)), "Features tensor contains NaN values"
+        assert torch.all(torch.isfinite(features_tensor)), "Features tensor contains infinite values"
+        
+        logger.debug(f"Making PyTorch prediction with features shape: {features_tensor.shape}")
+        
+        # Get prediction - let any errors bubble up
         with torch.no_grad():
-            output = self.model(features)
-            # Handle case where output is already a tensor from a mock
-            if isinstance(output, torch.Tensor):
-                if output.numel() == 1:
-                    confidence = float(output.item())
-                else:
-                    confidence = float(output[0].item() if len(output.shape) > 0 else output.item())
-            else:
-                confidence = float(output)
+            output = self.model(features_tensor)
+            
+            # Validate model output
+            assert isinstance(output, torch.Tensor), f"Model output must be torch.Tensor, got {type(output)}"
+            assert output.numel() == 1, f"Model output must have exactly 1 element, got {output.numel()}"
+            
+            confidence = float(output.item())
+            
+            # Validate confidence
+            assert 0.0 <= confidence <= 1.0, f"Confidence must be between 0 and 1, got {confidence}"
             
             prediction = int(round(confidence))
-            
+        
+        # Validate prediction
+        assert prediction in [0, 1], f"Prediction must be 0 or 1, got {prediction}"
+        
+        logger.debug(f"PyTorch prediction: {prediction}, confidence: {confidence:.3f}")
+        
         return {
             'conversion_happened': prediction,
             'time_to_conversion_seconds': float(TIMEOUT_SEC) if prediction == 1 else -1.0,

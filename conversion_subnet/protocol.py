@@ -55,6 +55,9 @@ class ConversationFeatures(TypedDict, total=False):
     entity_collection_rate: float             # Rate of entity collection
     repeated_questions: int                   # Count of repeated questions
     message_alternation_rate: float           # Rate of message alternation between user and agent
+    time_to_conversion_seconds: float         # Time to conversion in seconds
+    time_to_conversion_minutes: float         # Time to conversion in minutes
+    test_pk: str                              # Test primary key for validation tracking
 
 class PredictionOutput(TypedDict):
     """
@@ -66,11 +69,11 @@ class PredictionOutput(TypedDict):
     conversion_happened: int                  # Binary indicator if conversion happened (0 or 1)
     time_to_conversion_seconds: float         # Time to conversion in seconds (-1.0 if no conversion)
 
-# Create a default prediction that always passes validation
-DEFAULT_PREDICTION = {
-    'conversion_happened': 0,
-    'time_to_conversion_seconds': -1.0
-}
+# Remove the default prediction - we want to raise errors instead of using defaults
+# DEFAULT_PREDICTION = {
+#     'conversion_happened': 0,
+#     'time_to_conversion_seconds': -1.0
+# }
 
 class ConversionSynapse(bt.Synapse):
     """
@@ -88,8 +91,8 @@ class ConversionSynapse(bt.Synapse):
     features: ConversationFeatures
 
     # Output: Predictions and confidence returned by miner
-    # Initialize with a valid default to avoid validation errors
-    prediction: PredictionOutput = DEFAULT_PREDICTION  
+    # No default - force miners to provide actual predictions
+    prediction: Optional[PredictionOutput] = None
     confidence: Optional[float] = None
 
     # Metadata for scoring
@@ -100,6 +103,7 @@ class ConversionSynapse(bt.Synapse):
         """
         Post-initialization hook to ensure data types are correct.
         Converts integer fields to integers if they were provided as floats.
+        NO FALLBACKS - raises errors if validation fails.
         """
         if self.features:
             integer_fields = [
@@ -116,57 +120,84 @@ class ConversionSynapse(bt.Synapse):
                 if field in self.features and self.features[field] is not None:
                     try:
                         self.features[field] = int(self.features[field])
-                    except (ValueError, TypeError):
-                        # If conversion fails, log warning but continue
-                        bt.logging.warning(f"Failed to convert {field} to integer: {self.features[field]}")
+                    except (ValueError, TypeError) as e:
+                        # Don't hide errors - raise them with context
+                        raise ValueError(f"Failed to convert feature '{field}' with value '{self.features[field]}' to integer: {e}") from e
         
-        # Ensure prediction is valid
-        self.set_prediction(self.prediction)
+        # Validate prediction if provided
+        if self.prediction is not None:
+            self.set_prediction(self.prediction)
 
     def set_prediction(self, prediction: Optional[Union[Dict, PredictionOutput]]) -> None:
         """
-        Set the prediction with validation and type conversion.
+        Set the prediction with strict validation.
+        NO FALLBACKS - raises errors if validation fails.
         
         Args:
-            prediction: The prediction to set, or None to use default
-        """
-        if prediction is None or not prediction:
-            # Use default prediction
-            self.prediction = DEFAULT_PREDICTION.copy()
-            return
+            prediction: The prediction to set
             
+        Raises:
+            ValueError: If prediction is invalid
+            AssertionError: If prediction format is wrong
+        """
+        if prediction is None:
+            raise ValueError("Prediction cannot be None - miners must provide valid predictions")
+            
+        if not prediction:
+            raise ValueError("Prediction cannot be empty - miners must provide valid predictions")
+        
+        assert isinstance(prediction, dict), f"Prediction must be a dictionary, got {type(prediction)}"
+        
+        # Check required fields
+        if 'conversion_happened' not in prediction:
+            raise ValueError("Prediction must contain 'conversion_happened' field")
+            
+        if 'time_to_conversion_seconds' not in prediction:
+            raise ValueError("Prediction must contain 'time_to_conversion_seconds' field")
+        
         # Make a copy to avoid modifying the original
         result = prediction.copy()
         
-        # Ensure required fields exist
-        if 'conversion_happened' not in result:
-            result['conversion_happened'] = 0
-            
-        if 'time_to_conversion_seconds' not in result:
-            result['time_to_conversion_seconds'] = -1.0
-            
-        # Fix data types
+        # Validate and convert data types - NO FALLBACKS
         try:
-            result['conversion_happened'] = int(result['conversion_happened'])
-        except (ValueError, TypeError):
-            result['conversion_happened'] = 0
+            conversion_happened = int(result['conversion_happened'])
+            if conversion_happened not in [0, 1, -999]:  # -999 is allowed as error sentinel value
+                raise ValueError(f"conversion_happened must be 0, 1, or -999 (error sentinel), got {conversion_happened}")
+            result['conversion_happened'] = conversion_happened
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid conversion_happened value '{result['conversion_happened']}': {e}") from e
             
         try:
-            result['time_to_conversion_seconds'] = float(result['time_to_conversion_seconds'])
-        except (ValueError, TypeError):
-            result['time_to_conversion_seconds'] = -1.0
+            time_to_conversion = float(result['time_to_conversion_seconds'])
+            # Allow -1.0, positive values, or -999 (error sentinel)
+            if time_to_conversion != -1.0 and time_to_conversion != -999 and time_to_conversion <= 0:
+                raise ValueError(f"time_to_conversion_seconds must be -1.0, positive, or -999 (error sentinel), got {time_to_conversion}")
+            result['time_to_conversion_seconds'] = time_to_conversion
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid time_to_conversion_seconds value '{result['time_to_conversion_seconds']}': {e}") from e
+        
+        # Validate logical consistency (skip validation for -999 error sentinel values)
+        if result['conversion_happened'] != -999 and result['time_to_conversion_seconds'] != -999:
+            if result['conversion_happened'] == 1 and result['time_to_conversion_seconds'] == -1.0:
+                raise ValueError("If conversion_happened=1, time_to_conversion_seconds must be positive, not -1.0")
+            if result['conversion_happened'] == 0 and result['time_to_conversion_seconds'] != -1.0:
+                raise ValueError("If conversion_happened=0, time_to_conversion_seconds must be -1.0")
             
         # Set the validated prediction
         self.prediction = result
 
-    def deserialize(self) -> Union[PredictionOutput, Dict]:
+    def deserialize(self) -> PredictionOutput:
         """
         Deserialize the miner's response.
+        NO FALLBACKS - raises errors if no valid prediction.
 
         Returns:
-            PredictionOutput: The miner's prediction (conversion_happened, time_to_conversion_seconds).
+            PredictionOutput: The miner's prediction
+            
+        Raises:
+            ValueError: If no prediction is available
         """
         if self.prediction is None:
-            return DEFAULT_PREDICTION.copy()
+            raise ValueError("No prediction available - miner must provide valid prediction")
         return self.prediction
 
