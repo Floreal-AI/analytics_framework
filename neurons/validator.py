@@ -58,22 +58,25 @@ class Validator(BaseValidatorNeuron):
         try:
             # Get API configuration from environment - no defaults, must be in .env file
             api_base_url = os.getenv('VOICEFORM_API_BASE_URL')
-            api_key = os.getenv('VOICEFORM_API_KEY')
+            validation_api_key = os.getenv('VOICEFORM_VALIDATION_API_KEY')
             timeout = float(os.getenv('VALIDATION_API_TIMEOUT', '30.0'))
             
 
-            # Validate required configuration
-            if not api_base_url:
-                raise ValueError("VOICEFORM_API_BASE_URL is required")
-            if not api_key:
-                raise ValueError("VOICEFORM_API_KEY is required")
-            if timeout <= 0:
-                raise ValueError("VALIDATION_API_TIMEOUT must be positive")
+            # Validate required configuration with assertions
+            assert api_base_url, "VOICEFORM_API_BASE_URL is required"
+            assert validation_api_key, "VOICEFORM_VALIDATION_API_KEY is required for validator authentication"
+            assert timeout > 0, "VALIDATION_API_TIMEOUT must be positive"
             
-            # Configure the default client
-            configure_default_validation_client(api_base_url, api_key, timeout)
-            bt.logging.info("Validation API client configured successfully")
+            # Additional validation to ensure the API key is not empty/whitespace
+            assert validation_api_key.strip(), "VOICEFORM_VALIDATION_API_KEY cannot be empty or whitespace"
             
+            # Configure the default client with validation-specific API key
+            configure_default_validation_client(api_base_url, validation_api_key, timeout)
+            bt.logging.info("Validation API client configured successfully with VOICEFORM_VALIDATION_API_KEY")
+            
+        except AssertionError as e:
+            bt.logging.error(f"Configuration assertion failed: {e}")
+            raise RuntimeError(f"Validator initialization failed: {e}") from e
         except Exception as e:
             bt.logging.error(f"Failed to configure validation API client: {e}")
             raise RuntimeError(f"Validator initialization failed: External validation API is required but could not be configured: {e}") from e

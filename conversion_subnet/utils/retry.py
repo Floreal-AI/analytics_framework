@@ -212,8 +212,8 @@ async def retry_network_operation(
 async def retry_dendrite_call(
     operation: Callable,
     *args,
-    max_attempts: int = 4,  # More attempts for critical miner communication
-    base_timeout: float = 120.0,  # Longer timeout for miner responses
+    max_attempts: int = 3,  # Reduced from 4 for faster failure detection
+    base_timeout: float = 30.0,  # Reduced from 120s for faster response
     **kwargs
 ) -> Any:
     """
@@ -232,11 +232,11 @@ async def retry_dendrite_call(
     config = RetryConfig(
         max_attempts=max_attempts,
         base_timeout=base_timeout,
-        max_timeout=180.0,  # 3 minutes max (reduced from 10 minutes)
-        base_delay=1.0,  # Start with 1s delay (reduced from 2s)
-        max_delay=30.0,  # Cap at 30s between retries (reduced from 60s)
+        max_timeout=120.0,  # 2 minutes max (reduced from 3 minutes)
+        base_delay=1.0,  # Start with 1s delay
+        max_delay=20.0,  # Cap at 20s between retries (reduced from 30s)
         strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-        timeout_multiplier=1.2,  # More conservative timeout increase (reduced from 1.3)
+        timeout_multiplier=1.2,  # Conservative timeout increase
         retryable_exceptions=[
             asyncio.TimeoutError,
             ConnectionError,

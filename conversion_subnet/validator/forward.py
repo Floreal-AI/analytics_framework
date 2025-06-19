@@ -28,6 +28,7 @@ from conversion_subnet.validator.validation_client import (
     ValidationResult
 )
 from conversion_subnet.utils.retry import retry_dendrite_call, RetryConfig, RetryStrategy
+from conversion_subnet.utils.feature_encoding import pack_features_for_transmission, decode_predictions_from_response
 
 def preprocess_features(features: Dict) -> Dict:
     """
@@ -222,13 +223,19 @@ async def forward(self):
         features['session_id'] = session_id
         self.conversation_history[session_id] = features
 
-        # Create ConversionSynapse with REAL test features and REAL test_pk
-        synapse = ConversionSynapse(features=features)
+        # Pack features for transmission (workaround for Bittensor network bug)
+        # Bittensor network layer drops 95% of features, so we encode all features as base64
+        logger.info(f"Using REAL test data: test_pk={test_pk}, features_count={len(features)}")
+        packed_features = pack_features_for_transmission(features)
+        logger.debug(f"Packed {len(features)} features into {len(packed_features)} transmission fields")
+        
+        # Create ConversionSynapse with packed features
+        synapse = ConversionSynapse(features=packed_features)
 
-        # Defensive assertion to catch test_pk preservation issues early
-        assert 'test_pk' in synapse.features, f"CRITICAL BUG: test_pk not preserved in synapse.features. Available keys: {list(synapse.features.keys())}"
-        assert synapse.features['test_pk'] == test_pk, f"CRITICAL BUG: test_pk mismatch. Expected: {test_pk}, Got: {synapse.features.get('test_pk')}"
-        assert synapse.features.get('test_pk', 'unknown') != 'unknown', f"CRITICAL BUG: test_pk is 'unknown'. Features: {synapse.features}"
+        # Defensive assertion to catch feature packing issues early
+        assert 'session_id' in synapse.features, f"CRITICAL BUG: session_id not preserved in packed features. Available keys: {list(synapse.features.keys())}"
+        assert synapse.features['session_id'].startswith('ENCODED:'), f"CRITICAL BUG: session_id doesn't have ENCODED: prefix. Value: {synapse.features['session_id'][:50]}..."
+        assert len(synapse.features) == 1, f"CRITICAL BUG: Expected 1 packed field, got {len(synapse.features)}. Fields: {list(synapse.features.keys())}"
 
         # Query miners with retry logic and increased timeouts
         start_time = time.time()
@@ -243,7 +250,7 @@ async def forward(self):
             )
         
         # Log detailed connection information for debugging
-        logger.info(f"Querying {len(miner_uids)} miners with retry resilience for test_pk: {synapse.features.get('test_pk', 'unknown')}")
+        logger.info(f"Querying {len(miner_uids)} miners with retry resilience for test_pk: {test_pk}")
         for i, uid in enumerate(miner_uids):
             axon = self.metagraph.axons[uid]
             logger.info(f"Miner {uid}: attempting connection to {axon.ip}:{axon.port} (external: {getattr(axon, 'external_ip', 'not_set')}:{getattr(axon, 'external_port', 'not_set')})")
@@ -300,6 +307,30 @@ async def forward(self):
             if not hasattr(response, 'confidence') or response.confidence is None:
                 response.confidence = 0.5
                 
+            # Decode predictions from base64 encoding (workaround for Bittensor network bug)
+            # The network drops prediction fields, so miners encode them as base64 in features field
+            if hasattr(response, 'features') and response.features and 'encoded_predictions' in response.features:
+                try:
+                    # Try to decode base64 encoded predictions from features field
+                    response_data = {
+                        'prediction': response.features['encoded_predictions'],
+                        'confidence': getattr(response, 'confidence', 0.5)
+                    }
+                    decoded_predictions, decoded_confidence = decode_predictions_from_response(response_data)
+                    
+                    if decoded_predictions:
+                        logger.debug(f"🔓 Decoded predictions from miner {uid} features: {decoded_predictions}")
+                        response.prediction = decoded_predictions
+                        response.confidence = decoded_confidence
+                        # Remove the encoded predictions from features to clean up
+                        del response.features['encoded_predictions']
+                    else:
+                        logger.debug(f"No valid encoded predictions found from miner {uid}, using direct response")
+                        
+                except Exception as decode_error:
+                    logger.warning(f"Failed to decode predictions from miner {uid} features: {decode_error}")
+                    # Continue with original prediction
+            
             # Handle predictions - DO NOT try to set empty predictions as they will fail validation
             # Leave None predictions as None - they will be handled in scoring with 0.0 reward
             if hasattr(response, 'prediction') and response.prediction is not None:
@@ -324,6 +355,16 @@ async def forward(self):
         # Log responses for monitoring
         logger.info(f"Received {len(responses)} responses for REAL test_pk: {test_pk}")
         for i, r in enumerate(responses):
+            logger.debug(f"🔍 RESPONSE DEBUG - Miner {miner_uids[i]}:")
+            logger.debug(f"   Response type: {type(r)}")
+            logger.debug(f"   Has prediction: {hasattr(r, 'prediction')}")
+            logger.debug(f"   Prediction value: {getattr(r, 'prediction', 'NO_ATTR')}")
+            logger.debug(f"   Has features: {hasattr(r, 'features')}")
+            logger.debug(f"   Features value: {getattr(r, 'features', 'NO_ATTR')}")
+            logger.debug(f"   Has confidence: {hasattr(r, 'confidence')}")
+            logger.debug(f"   Confidence value: {getattr(r, 'confidence', 'NO_ATTR')}")
+            if hasattr(r, 'features') and r.features:
+                logger.debug(f"   Features keys: {list(r.features.keys()) if isinstance(r.features, dict) else 'NOT_DICT'}")
             logger.debug(f"Miner {miner_uids[i]} prediction: {r.prediction}")
 
         # Get external validation using SAME REAL test_pk with retry resilience

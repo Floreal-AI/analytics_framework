@@ -76,7 +76,18 @@ class BaseMinerNeuron(BaseNeuron):
         bt.logging.info(
             f"Serving miner axon {self.axon} on network: {self.config.subtensor.chain_endpoint} with netuid: {self.config.netuid}"
         )
-        self.axon.serve(netuid=self.config.netuid, subtensor=self.subtensor)
+        
+        try:
+            self.axon.serve(netuid=self.config.netuid, subtensor=self.subtensor)
+            bt.logging.success("Successfully served axon to network")
+        except Exception as e:
+            bt.logging.error(f"Failed to serve axon with error: {e}")
+            if "Custom error: 11" in str(e) or "Invalid Transaction" in str(e):
+                bt.logging.error("This is likely a registration or balance issue. Please check:")
+                bt.logging.error("1. Is your wallet registered? Run: btcli wallet overview --wallet.name amitn_miner")
+                bt.logging.error("2. Do you have sufficient balance for transaction fees?")
+                bt.logging.error("3. Is the local subtensor node running and synced?")
+            raise
 
         # Start  starts the miner's axon, making it active on the network.
         self.axon.start()

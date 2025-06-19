@@ -177,5 +177,6 @@ logs/
 reports/
 junit.xml
 
-architectural_review/*
+.architectural_review/*
 conversion_subnet/data_api/data/*
+.reports/

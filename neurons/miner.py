@@ -7,6 +7,7 @@ from conversion_subnet.base.miner import BaseMinerNeuron
 from conversion_subnet.miner.miner import BinaryClassificationMiner
 from conversion_subnet.utils.log import logger
 from conversion_subnet.constants import TIMEOUT_SEC
+from conversion_subnet.utils.feature_encoding import unpack_features_from_transmission, encode_predictions_for_response
 
 class Miner(BaseMinerNeuron):
     """
@@ -90,17 +91,56 @@ class Miner(BaseMinerNeuron):
             ConversionSynapse: Synapse with predictions (conversion_happened, time_to_conversion_seconds) and confidence.
         """
         try:
+            # FIRST: Unpack features from base64 encoding (workaround for Bittensor network bug)
+            if synapse.features and 'session_id' in synapse.features and synapse.features['session_id'].startswith('ENCODED:'):
+                logger.info("🔓 UNPACKING ENCODED FEATURES:")
+                original_features = unpack_features_from_transmission(synapse.features)
+                logger.info(f"   Unpacked {len(original_features)} features from base64 encoding")
+                logger.debug(f"   Restored feature keys: {list(original_features.keys())}")
+                
+                # Replace the packed features with unpacked ones
+                synapse.features = original_features
+                logger.info("✅ FEATURES SUCCESSFULLY REPLACED")
+            else:
+                logger.warning("⚠️  No ENCODED: prefix in session_id - using features as-is (may be incomplete)")
+            
+            # DEBUG: Log synapse details AFTER unpacking
+            logger.info(f"🔍 PROCESSING SYNAPSE DEBUG:")
+            logger.info(f"   Synapse type: {type(synapse)}")
+            logger.info(f"   Has features: {hasattr(synapse, 'features')}")
+            if hasattr(synapse, 'features'):
+                logger.info(f"   Features type: {type(synapse.features)}")
+                logger.info(f"   Features count: {len(synapse.features) if synapse.features else 0}")
+                logger.info(f"   Feature keys: {list(synapse.features.keys()) if synapse.features else 'None'}")
+                if synapse.features and len(synapse.features) < 10:  # Only log if small number
+                    logger.info(f"   Feature values: {synapse.features}")
+            logger.info(f"   Dendrite hotkey: {getattr(synapse.dendrite, 'hotkey', 'None') if hasattr(synapse, 'dendrite') else 'No dendrite'}")
+            
             # Use the binary classification model for prediction
             result = self.classifier.forward(synapse)
 
-            # Attach predictions to synapse
-            synapse.prediction = {
+            # Prepare predictions
+            predictions = {
                 'conversion_happened': result['conversion_happened'],
                 'time_to_conversion_seconds': result['time_to_conversion_seconds']
             }
-            synapse.confidence = result.get('confidence', 0.5)
+            confidence = result.get('confidence', 0.5)
+            
+            # Encode predictions for transmission (workaround for Bittensor network bug)
+            # The network drops prediction fields, so we encode them as base64 and put in features
+            encoded_response = encode_predictions_for_response(predictions, confidence)
+            
+            # Put encoded predictions in features field (which can accept strings)
+            if not hasattr(synapse, 'features') or synapse.features is None:
+                synapse.features = {}
+            synapse.features['encoded_predictions'] = encoded_response['prediction']
+            
+            # Also set the regular prediction fields as backup
+            synapse.prediction = predictions
+            synapse.confidence = confidence
 
-            logger.debug(f"Processed synapse for hotkey {synapse.dendrite.hotkey}: {synapse.prediction}")
+            logger.debug(f"Processed synapse for hotkey {synapse.dendrite.hotkey}: {predictions}")
+            logger.debug(f"Encoded response for transmission: prediction field length = {len(str(synapse.prediction))}")
 
         except Exception as e:
             logger.error(f"Error in forward: {e}")

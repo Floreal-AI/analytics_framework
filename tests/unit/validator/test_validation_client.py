@@ -357,4 +357,86 @@ class TestValidationError:
     def test_validation_error_inheritance(self):
         """Test that ValidationError inherits from Exception."""
         error = ValidationError("Test")
-        assert isinstance(error, Exception) 
+        assert isinstance(error, Exception)
+
+
+class TestValidationEnvironmentConfiguration:
+    """Test suite for environment variable configuration in the validator."""
+    
+    @patch('neurons.validator.configure_default_validation_client')
+    @patch.dict('os.environ', {
+        'VOICEFORM_API_BASE_URL': 'https://test-api.example.com/v1',
+        'VOICEFORM_VALIDATION_API_KEY': 'test-validation-key-123',
+        'VALIDATION_API_TIMEOUT': '25.0'
+    })
+    def test_configure_validation_client_with_validation_api_key(self, mock_configure):
+        """Test that validator uses VOICEFORM_VALIDATION_API_KEY for validation client."""
+        # Import here to avoid circular import issues
+        from neurons.validator import Validator
+        
+        # Mock the base validator initialization to avoid network calls
+        with patch('conversion_subnet.base.validator.BaseValidatorNeuron.__init__'), \
+             patch.object(Validator, 'load_state'), \
+             patch.object(Validator, '_configure_data_client'):
+            
+            validator = Validator()
+            
+            # Verify configure_default_validation_client was called with the validation API key
+            mock_configure.assert_called_once_with(
+                'https://test-api.example.com/v1',
+                'test-validation-key-123',  # Should use VOICEFORM_VALIDATION_API_KEY
+                25.0
+            )
+    
+    @patch.dict('os.environ', {
+        'VOICEFORM_API_BASE_URL': 'https://test-api.example.com/v1',
+        # Missing VOICEFORM_VALIDATION_API_KEY
+        'VALIDATION_API_TIMEOUT': '30.0'
+    })
+    def test_configure_validation_client_missing_validation_api_key(self):
+        """Test that validator fails when VOICEFORM_VALIDATION_API_KEY is missing."""
+        from neurons.validator import Validator
+        
+        with patch('conversion_subnet.base.validator.BaseValidatorNeuron.__init__'), \
+             patch.object(Validator, 'load_state'), \
+             patch.object(Validator, '_configure_data_client'):
+            
+            with pytest.raises(RuntimeError, match="VOICEFORM_VALIDATION_API_KEY is required for validator authentication"):
+                Validator()
+    
+    @patch.dict('os.environ', {
+        'VOICEFORM_API_BASE_URL': 'https://test-api.example.com/v1',
+        'VOICEFORM_VALIDATION_API_KEY': '   ',  # Empty/whitespace API key
+        'VALIDATION_API_TIMEOUT': '30.0'
+    })
+    def test_configure_validation_client_empty_validation_api_key(self):
+        """Test that validator fails when VOICEFORM_VALIDATION_API_KEY is empty/whitespace."""
+        from neurons.validator import Validator
+        
+        with patch('conversion_subnet.base.validator.BaseValidatorNeuron.__init__'), \
+             patch.object(Validator, 'load_state'), \
+             patch.object(Validator, '_configure_data_client'):
+            
+            with pytest.raises(RuntimeError, match="VOICEFORM_VALIDATION_API_KEY cannot be empty or whitespace"):
+                Validator()
+    
+    @patch.dict('os.environ', {
+        'VOICEFORM_API_BASE_URL': 'https://test-api.example.com/v1',
+        'VOICEFORM_VALIDATION_API_KEY': 'valid-key',
+        # Missing VOICEFORM_API_BASE_URL would be tested separately
+    })
+    def test_validation_api_key_assertion_messages(self):
+        """Test that assertion messages are clear and specific."""
+        from neurons.validator import Validator
+        
+        # Test with missing base URL
+        with patch.dict('os.environ', {
+            'VOICEFORM_VALIDATION_API_KEY': 'valid-key',
+            'VALIDATION_API_TIMEOUT': '30.0'
+        }, clear=True):
+            with patch('conversion_subnet.base.validator.BaseValidatorNeuron.__init__'), \
+                 patch.object(Validator, 'load_state'), \
+                 patch.object(Validator, '_configure_data_client'):
+                
+                with pytest.raises(RuntimeError, match="VOICEFORM_API_BASE_URL is required"):
+                    Validator() 
